@@ -40,6 +40,15 @@ export interface Category {
   name: string
   slug: string
   parent_id?: number | null
+  description?: string | null
+  image_url?: string | null
+}
+
+export interface PopularCategory extends Category {
+  root_id: number
+  root_name: string
+  sales_count: number
+  products_count: number
 }
 
 // Product types
@@ -51,9 +60,15 @@ export interface Product {
   description?: string
   price: number
   image_url?: string
+  purchases_count: number
   is_active: boolean
   created_at: string
   updated_at: string
+  category_path: Array<{
+    id: number
+    name: string
+    slug: string
+  }>
   category?: Category
   seller?: User
 }
@@ -72,7 +87,23 @@ export interface ProductUpdate {
   description?: string
   price?: number
   image_url?: string
+  purchases_count?: number
   is_active?: boolean
+}
+
+export interface AdminStats {
+  users_count: number
+  sellers_count: number
+  buyers_count: number
+  categories_count: number
+  products_count: number
+  active_products_count: number
+  digital_items_count: number
+  available_digital_items_count: number
+  orders_count: number
+  paid_orders_count: number
+  reviews_count: number
+  favorites_count: number
 }
 
 // Order types
@@ -116,6 +147,29 @@ export interface Favorite {
   product_id: number
   created_at: string
   product?: Product
+}
+
+export interface ChatMessage {
+  id: number
+  thread_id: number
+  sender_id: number
+  body: string
+  created_at: string
+  is_read: boolean
+}
+
+export interface ChatThread {
+  id: number
+  buyer_id: number
+  seller_id: number
+  product_id: number
+  product_image_url?: string | null
+  created_at: string
+  updated_at: string
+  product_title: string
+  buyer_username: string
+  seller_username: string
+  last_message?: ChatMessage | null
 }
 
 // API Response types

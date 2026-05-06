@@ -86,10 +86,19 @@ def get_order_or_404(db: Session, order_id: int) -> Order:
 
 def update_order(db: Session, order_id: int, order_data: AdminOrderUpdate) -> Order:
     order = get_order_or_404(db, order_id)
+    previous_status = order.status
     order.status = order_data.status.value
 
     if order.digital_item is not None:
         order.digital_item.is_sold = order.status != OrderStatus.CANCELLED.value
+
+    was_paid = previous_status == OrderStatus.PAID.value
+    is_paid = order.status == OrderStatus.PAID.value
+    if was_paid != is_paid and order.product is not None:
+        if is_paid:
+            order.product.purchases_count += 1
+        else:
+            order.product.purchases_count = max(0, order.product.purchases_count - 1)
 
     db.commit()
     db.refresh(order)

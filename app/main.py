@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.admin import router as admin_router
 from app.api.auth import router as auth_router
 from app.api.categories import router as categories_router
+from app.api.chats import router as chats_router
 from app.api.favorites import router as favorites_router
 from app.api.health import router as health_router
 from app.api.orders import router as orders_router
@@ -36,6 +37,7 @@ app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(users_router)
 app.include_router(categories_router)
+app.include_router(chats_router)
 app.include_router(products_router)
 app.include_router(seller_router)
 app.include_router(orders_router)

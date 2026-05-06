@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -20,6 +20,16 @@ class Category(Base):
         unique=True,
         index=True,
         nullable=False,
+    )
+
+    description: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    image_url: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
     )
 
     parent_id: Mapped[int | None] = mapped_column(

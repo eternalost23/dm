@@ -11,6 +11,7 @@ class AdminProductCreate(BaseModel):
     description: str | None = None
     price: Decimal = Field(gt=0)
     image_url: str | None = None
+    purchases_count: int = Field(default=0, ge=0)
     is_active: bool = True
 
 
@@ -21,6 +22,7 @@ class AdminProductUpdate(BaseModel):
     description: str | None = None
     price: Decimal | None = Field(default=None, gt=0)
     image_url: str | None = None
+    purchases_count: int | None = Field(default=None, ge=0)
     is_active: bool | None = None
 
 

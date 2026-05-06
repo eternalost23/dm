@@ -55,6 +55,7 @@ def create_order(
     )
 
     digital_item.is_sold = True
+    product.purchases_count += 1
 
     db.add(order)
     db.commit()

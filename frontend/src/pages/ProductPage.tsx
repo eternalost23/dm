@@ -1,20 +1,40 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import type { FormEvent } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import {
+  Check,
+  CheckCheck,
+  Heart,
+  Home,
+  MessageSquare,
+  Send,
+  ShoppingBasket,
+  Star,
+  X,
+} from 'lucide-react'
 import api from '../lib/api'
-import type { Product, Review } from '../types'
+import type { ChatMessage, ChatThread, Product, Review } from '../types'
 import { useAuth } from '../hooks/useAuth'
+import { addCartItem } from '../lib/cart'
 import { Button } from '../components/ui/button'
-import { Heart, ShoppingBasket, Star } from 'lucide-react'
 
 const formatPrice = (price: number) =>
   new Intl.NumberFormat('ru-RU').format(Number(price))
 
-const getSalesLabel = (productId: number) => {
-  const fakeSales = productId * 37 + 63
-  return fakeSales >= 1000
-    ? `Продано ${(fakeSales / 1000).toFixed(1)} тыс.`
-    : `Продано ${fakeSales}+`
+const getSalesLabel = (count: number) => {
+  return count >= 1000
+    ? `Продано ${(count / 1000).toFixed(1)} тыс.`
+    : `Продано ${count}`
 }
+
+const getCategoryPathText = (product: Product) =>
+  product.category_path?.map((category) => category.name).join(' / ') || ''
+
+const formatMessageTime = (value: string) =>
+  new Intl.DateTimeFormat('ru-RU', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value))
 
 export function ProductPage() {
   const { id } = useParams<{ id: string }>()
@@ -23,6 +43,10 @@ export function ProductPage() {
   const [loading, setLoading] = useState(true)
   const [isFavorite, setIsFavorite] = useState(false)
   const [activeTab, setActiveTab] = useState<'description' | 'reviews'>('description')
+  const [chatOpen, setChatOpen] = useState(false)
+  const [chatThread, setChatThread] = useState<ChatThread | null>(null)
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const [chatText, setChatText] = useState('')
   const { user } = useAuth()
   const navigate = useNavigate()
 
@@ -87,8 +111,10 @@ export function ProductPage() {
       navigate('/login')
       return
     }
+    if (!product) return
 
-    alert('Корзина пока не реализована: можно купить товар сразу.')
+    addCartItem(product)
+    navigate('/cart')
   }
 
   const buyNow = async () => {
@@ -101,10 +127,60 @@ export function ProductPage() {
       await api.post('/orders', {
         product_id: parseInt(id!),
       })
-      alert('Purchase completed successfully!')
+      alert('Покупка завершена.')
+      await fetchProduct()
     } catch (error: any) {
       console.error('Failed to complete purchase:', error)
-      alert(error.response?.data?.detail || 'Failed to complete purchase')
+      alert(error.response?.data?.detail || 'Не удалось купить товар')
+    }
+  }
+
+  const fetchChatMessages = async (threadId: number) => {
+    const response = await api.get(`/chats/${threadId}/messages`)
+    setChatMessages(response.data)
+  }
+
+  const openChat = async () => {
+    if (!user) {
+      navigate('/login')
+      return
+    }
+
+    setChatOpen(true)
+    try {
+      const response = await api.get(`/chats/product/${id}`)
+      setChatThread(response.data)
+      await fetchChatMessages(response.data.id)
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        setChatThread(null)
+        setChatMessages([])
+        return
+      }
+      console.error('Failed to open chat:', error)
+      alert(error.response?.data?.detail || 'Failed to open chat')
+    }
+  }
+
+  const sendChatMessage = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!chatText.trim()) return
+
+    try {
+      if (chatThread) {
+        await api.post(`/chats/${chatThread.id}/messages`, { body: chatText.trim() })
+        await fetchChatMessages(chatThread.id)
+      } else {
+        const response = await api.post('/chats', {
+          product_id: parseInt(id!),
+          message: chatText.trim(),
+        })
+        setChatThread(response.data)
+        await fetchChatMessages(response.data.id)
+      }
+      setChatText('')
+    } catch (error) {
+      console.error('Failed to send message:', error)
     }
   }
 
@@ -127,15 +203,26 @@ export function ProductPage() {
   return (
     <div className="bg-slate-100 py-5">
       <div className="mx-auto grid max-w-7xl grid-cols-1 gap-3 px-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-400 lg:col-span-2">
+          <Link to="/" className="flex items-center gap-1 hover:text-blue-600">
+            <Home className="h-4 w-4" />
+            Главная
+          </Link>
+          {product.category_path?.map((category) => (
+            <span key={category.id} className="flex items-center gap-2">
+              <span>/</span>
+              <Link to={`/search?category_id=${category.id}`} className="hover:text-blue-600">
+                {category.name}
+              </Link>
+            </span>
+          ))}
+        </div>
+
         <section className="rounded-3xl bg-white p-6">
           <div className="grid gap-5 md:grid-cols-[200px_minmax(0,1fr)]">
             <div className="relative aspect-square overflow-hidden rounded-lg bg-slate-100">
               {product.image_url ? (
-                <img
-                  src={product.image_url}
-                  alt={product.title}
-                  className="h-full w-full object-cover"
-                />
+                <img src={product.image_url} alt={product.title} className="h-full w-full object-cover" />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-sm text-slate-400">
                   No image
@@ -151,13 +238,14 @@ export function ProductPage() {
               </button>
             </div>
             <div className="min-w-0">
-              <h1 className="text-3xl font-extrabold uppercase leading-tight text-slate-950">
-                {product.title}
-              </h1>
+              <h1 className="text-3xl font-extrabold uppercase leading-tight text-slate-950">{product.title}</h1>
               <div className="mt-3 flex flex-wrap items-center gap-3 text-sm font-medium text-slate-500">
-                <span>{getSalesLabel(product.id)}</span>
+                <span>{getSalesLabel(product.purchases_count)}</span>
                 <span className="text-slate-300">•</span>
                 <span className="text-blue-600">Отзывы {reviews.length}</span>
+              </div>
+              <div className="mt-3 text-sm font-semibold text-slate-400">
+                {getCategoryPathText(product)}
               </div>
             </div>
           </div>
@@ -185,6 +273,10 @@ export function ProductPage() {
               Купить сейчас
             </Button>
           </div>
+          <Button type="button" variant="outline" className="mt-3 h-11 w-full" onClick={openChat}>
+            <MessageSquare className="mr-2 h-4 w-4" />
+            Написать продавцу
+          </Button>
           <p className="mt-4 text-xs font-medium leading-5 text-slate-400">
             Нажимая на кнопку, вы соглашаетесь с правилами покупки.
           </p>
@@ -206,9 +298,7 @@ export function ProductPage() {
             >
               Отзывы
             </button>
-            <span className="rounded-lg bg-slate-100 px-3 py-1 text-slate-800">
-              {reviews.length}
-            </span>
+            <span className="rounded-lg bg-slate-100 px-3 py-1 text-slate-800">{reviews.length}</span>
           </div>
         </section>
 
@@ -239,20 +329,89 @@ export function ProductPage() {
                         {review.buyer?.username || `buyer #${review.buyer_id}`}
                       </span>
                     </div>
-                    {review.comment && (
-                      <p className="mt-2 text-slate-700">{review.comment}</p>
-                    )}
+                    {review.comment && <p className="mt-2 text-slate-700">{review.comment}</p>}
                   </div>
                 ))}
               </div>
-
-              {reviews.length === 0 && (
-                <p className="mt-6 text-slate-500">No reviews yet</p>
-              )}
+              {reviews.length === 0 && <p className="mt-6 text-slate-500">No reviews yet</p>}
             </div>
           )}
         </section>
       </div>
+
+      {chatOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4">
+          <div className="flex h-[min(720px,90vh)] w-full max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+            <div className="flex items-center gap-3 border-b p-4">
+              <Link to={`/products/${product.id}`} className="h-14 w-14 overflow-hidden rounded-lg bg-slate-100">
+                {(chatThread?.product_image_url || product.image_url) ? (
+                  <img src={chatThread?.product_image_url || product.image_url} alt="" className="h-full w-full object-cover" />
+                ) : null}
+              </Link>
+              <div className="min-w-0 flex-1">
+                <Link to={`/products/${product.id}`} className="font-bold text-slate-950 hover:text-blue-600">
+                  {chatThread?.product_title || product.title}
+                </Link>
+                <div className="text-sm text-slate-500">
+                  {chatThread
+                    ? user?.id === chatThread.seller_id
+                      ? chatThread.buyer_username
+                      : chatThread.seller_username
+                    : 'Новое сообщение продавцу'}
+                </div>
+              </div>
+              <button
+                type="button"
+                className="rounded-md p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                onClick={() => setChatOpen(false)}
+                aria-label="Close chat"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="flex-1 space-y-3 overflow-y-auto bg-slate-50 p-4">
+              {chatMessages.map((message) => {
+                const own = message.sender_id === user?.id
+                return (
+                  <div key={message.id} className={`flex ${own ? 'justify-end' : 'justify-start'}`}>
+                    <div
+                      className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm shadow-sm ${
+                        own
+                          ? 'rounded-br-md bg-sky-100 text-slate-900'
+                          : 'rounded-bl-md bg-white text-slate-800'
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-end gap-x-2 gap-y-1">
+                        <span>{message.body}</span>
+                        <span className="ml-auto inline-flex items-center gap-1 text-xs text-sky-500">
+                          {formatMessageTime(message.created_at)}
+                          {own && (
+                            message.is_read
+                              ? <CheckCheck className="h-4 w-4" />
+                              : <Check className="h-4 w-4" />
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+              {chatMessages.length === 0 && <p className="text-sm text-slate-500">Сообщений пока нет.</p>}
+            </div>
+            <form className="flex gap-2 border-t p-3" onSubmit={sendChatMessage}>
+              <input
+                value={chatText}
+                onChange={(event) => setChatText(event.target.value)}
+                className="h-11 min-w-0 flex-1 rounded-md border border-input px-3"
+                placeholder="Сообщение"
+              />
+              <Button className="h-11">
+                <Send className="h-4 w-4" />
+              </Button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

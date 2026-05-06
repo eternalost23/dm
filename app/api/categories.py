@@ -4,7 +4,12 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import get_current_admin
 from app.core.database import get_db
 from app.models.user import User
-from app.schemas.category import CategoryCreate, CategoryRead, CategoryUpdate
+from app.schemas.category import (
+    CategoryCreate,
+    CategoryRead,
+    CategoryUpdate,
+    PopularCategoryRead,
+)
 from app.services import categories
 
 router = APIRouter(
@@ -16,6 +21,14 @@ router = APIRouter(
 @router.get("", response_model=list[CategoryRead])
 def get_categories(db: Session = Depends(get_db)):
     return categories.list_categories(db)
+
+
+@router.get("/popular", response_model=list[PopularCategoryRead])
+def get_popular_categories(
+    limit: int = 16,
+    db: Session = Depends(get_db),
+):
+    return categories.list_popular_categories(db, limit=limit)
 
 
 @router.get("/{category_id}", response_model=CategoryRead)

@@ -69,3 +69,20 @@ class User(Base):
         "Favorite",
         back_populates="user",
     )
+
+    buyer_chat_threads = relationship(
+        "ChatThread",
+        foreign_keys="ChatThread.buyer_id",
+        back_populates="buyer",
+    )
+
+    seller_chat_threads = relationship(
+        "ChatThread",
+        foreign_keys="ChatThread.seller_id",
+        back_populates="seller",
+    )
+
+    chat_messages = relationship(
+        "ChatMessage",
+        back_populates="sender",
+    )

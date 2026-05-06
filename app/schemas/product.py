@@ -6,6 +6,12 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.schemas.category import CategoryRead
 
 
+class ProductCategoryPathItem(BaseModel):
+    id: int
+    name: str
+    slug: str
+
+
 class ProductBase(BaseModel):
     seller_id: int
     category_id: int
@@ -13,6 +19,7 @@ class ProductBase(BaseModel):
     description: str | None = None
     price: Decimal
     image_url: str | None = None
+    purchases_count: int = 0
     is_active: bool = True
 
 
@@ -36,6 +43,7 @@ class ProductRead(ProductBase):
     id: int
     created_at: datetime
     updated_at: datetime
+    category_path: list[ProductCategoryPathItem] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 

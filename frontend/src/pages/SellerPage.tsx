@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Badge } from '../components/ui/badge'
-import { Plus, Edit, Trash2 } from 'lucide-react'
+import { Plus, Edit, Trash2, FolderPlus } from 'lucide-react'
 
 const productSchema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters'),
@@ -28,6 +28,14 @@ export function SellerPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
+  const [showCategoryForm, setShowCategoryForm] = useState(false)
+  const [newCategory, setNewCategory] = useState({
+    name: '',
+    slug: '',
+    parent_id: '',
+    description: '',
+    image_url: '',
+  })
 
   const {
     register,
@@ -80,6 +88,48 @@ export function SellerPage() {
       reset()
     } catch (error) {
       console.error('Failed to save product:', error)
+    }
+  }
+
+  const getCategoryLabel = (category: Category) => {
+    const categoryById = new Map(categories.map((item) => [item.id, item]))
+    const names = [category.name]
+    let parentId = category.parent_id
+
+    while (parentId) {
+      const parent = categoryById.get(parentId)
+      if (!parent) break
+      names.unshift(parent.name)
+      parentId = parent.parent_id
+    }
+
+    return names.join(' / ')
+  }
+
+  const handleCreateCategory = async () => {
+    try {
+      const response = await api.post('/seller/categories', {
+        name: newCategory.name,
+        slug: newCategory.slug,
+        parent_id: newCategory.parent_id ? Number(newCategory.parent_id) : null,
+        description: newCategory.description || null,
+        image_url: newCategory.image_url || null,
+      })
+
+      const createdCategory = response.data
+      await fetchData()
+      setValue('category_id', createdCategory.id)
+      setNewCategory({
+        name: '',
+        slug: '',
+        parent_id: '',
+        description: '',
+        image_url: '',
+      })
+      setShowCategoryForm(false)
+    } catch (error: any) {
+      console.error('Failed to create category:', error)
+      alert(error.response?.data?.detail || 'Failed to create category')
     }
   }
 
@@ -190,23 +240,84 @@ export function SellerPage() {
               </div>
 
               <div>
-                <select
-                  {...register('category_id', { valueAsNumber: true })}
-                  className="w-full px-3 py-2 border border-input rounded-md"
-                >
-                  <option value="">Select Category</option>
-                  {categories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex gap-2">
+                  <select
+                    {...register('category_id', { valueAsNumber: true })}
+                    className="min-w-0 flex-1 rounded-md border border-input px-3 py-2"
+                  >
+                    <option value="">Select Category</option>
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {getCategoryLabel(category)}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowCategoryForm(!showCategoryForm)}
+                  >
+                    <FolderPlus className="h-4 w-4" />
+                  </Button>
+                </div>
                 {errors.category_id && (
                   <p className="text-sm text-red-500 mt-1">
                     {errors.category_id.message}
                   </p>
                 )}
               </div>
+
+              {showCategoryForm && (
+                <div className="rounded-lg border bg-slate-50 p-4">
+                  <div className="mb-3 text-sm font-semibold text-slate-700">
+                    Create category
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Input
+                      value={newCategory.name}
+                      onChange={(event) => setNewCategory({ ...newCategory, name: event.target.value })}
+                      placeholder="Category name"
+                    />
+                    <Input
+                      value={newCategory.slug}
+                      onChange={(event) => setNewCategory({ ...newCategory, slug: event.target.value })}
+                      placeholder="Slug, e.g. rdr-steam-keys"
+                    />
+                    <select
+                      value={newCategory.parent_id}
+                      onChange={(event) => setNewCategory({ ...newCategory, parent_id: event.target.value })}
+                      className="rounded-md border border-input px-3 py-2"
+                    >
+                      <option value="">No parent</option>
+                      {categories.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {getCategoryLabel(category)}
+                        </option>
+                      ))}
+                    </select>
+                    <Input
+                      value={newCategory.image_url}
+                      onChange={(event) => setNewCategory({ ...newCategory, image_url: event.target.value })}
+                      placeholder="Image URL"
+                    />
+                    <textarea
+                      value={newCategory.description}
+                      onChange={(event) => setNewCategory({ ...newCategory, description: event.target.value })}
+                      placeholder="Description"
+                      className="min-h-20 rounded-md border border-input px-3 py-2 md:col-span-2"
+                    />
+                  </div>
+                  <div className="mt-3 flex justify-end">
+                    <Button
+                      type="button"
+                      disabled={!newCategory.name || !newCategory.slug}
+                      onClick={handleCreateCategory}
+                    >
+                      Create and select
+                    </Button>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <Input

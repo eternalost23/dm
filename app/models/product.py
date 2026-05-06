@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Numeric, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -45,6 +45,12 @@ class Product(Base):
         nullable=True,
     )
 
+    purchases_count: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+    )
+
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         default=True,
@@ -73,6 +79,23 @@ class Product(Base):
         "Category",
         back_populates="products",
     )
+
+    @property
+    def category_path(self) -> list[dict]:
+        path = []
+        category = self.category
+
+        while category is not None:
+            path.append(
+                {
+                    "id": category.id,
+                    "name": category.name,
+                    "slug": category.slug,
+                }
+            )
+            category = category.parent
+
+        return list(reversed(path))
     
     digital_items = relationship(
         "DigitalItem",
@@ -91,5 +114,10 @@ class Product(Base):
 
     favorites = relationship(
         "Favorite",
+        back_populates="product",
+    )
+
+    chat_threads = relationship(
+        "ChatThread",
         back_populates="product",
     )

@@ -4,10 +4,11 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import get_current_seller
 from app.core.database import get_db
 from app.models import User
+from app.schemas.category import CategoryCreate, CategoryRead
 from app.schemas.digital_item import DigitalItemCreate, DigitalItemRead
 from app.schemas.order import SellerOrderRead
 from app.schemas.product import ProductCreate, ProductRead, ProductUpdate
-from app.services import digital_items, orders, products
+from app.services import categories, digital_items, orders, products
 
 router = APIRouter(
     prefix="/seller",
@@ -38,6 +39,19 @@ def create_product(
         seller_id=current_seller.id,
         product_data=product_data,
     )
+
+
+@router.post(
+    "/categories",
+    response_model=CategoryRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_category(
+    category_data: CategoryCreate,
+    _: User = Depends(get_current_seller),
+    db: Session = Depends(get_db),
+):
+    return categories.create_category(db, category_data)
 
 @router.patch("/products/{product_id}", response_model=ProductRead)
 def update_product(

@@ -8,6 +8,10 @@ import { ProductPage } from './pages/ProductPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { SellerPage } from './pages/SellerPage'
 import { CartPage } from './pages/CartPage'
+import { AdminPage } from './pages/AdminPage'
+import { ChatsPage } from './pages/ChatsPage'
+import { SearchPage } from './pages/SearchPage'
+import { FavoritesPage } from './pages/FavoritesPage'
 import './App.css'
 
 function App() {
@@ -25,6 +29,10 @@ function App() {
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/seller" element={<SellerPage />} />
               <Route path="/cart" element={<CartPage />} />
+              <Route path="/admin" element={<AdminPage />} />
+              <Route path="/chats" element={<ChatsPage />} />
+              <Route path="/search" element={<SearchPage />} />
+              <Route path="/favorites" element={<FavoritesPage />} />
               {/* TODO: Add more routes for cart, profile, seller dashboard, etc. */}
             </Routes>
           </main>

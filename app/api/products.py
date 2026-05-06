@@ -17,6 +17,7 @@ router = APIRouter(
 def get_products(
     category_id: int | None = None,
     search: str | None = None,
+    sort: str | None = None,
     min_price: Decimal | None = Query(default=None, ge=0),
     max_price: Decimal | None = Query(default=None, ge=0),
     db: Session = Depends(get_db),
@@ -25,6 +26,7 @@ def get_products(
         db,
         category_id=category_id,
         search=search,
+        sort=sort,
         min_price=min_price,
         max_price=max_price,
     )

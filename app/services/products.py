@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from fastapi import HTTPException, status
+from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
@@ -8,6 +9,7 @@ from app.models import Category, Product, User
 from app.models.user import UserRole
 from app.schemas.admin import AdminProductCreate, AdminProductUpdate
 from app.schemas.product import ProductCreate, ProductUpdate
+from app.services import categories as category_service
 
 
 def ensure_seller(db: Session, seller_id: int) -> User:
@@ -45,22 +47,82 @@ def list_public_products(
     *,
     category_id: int | None = None,
     search: str | None = None,
+    sort: str | None = None,
     min_price: Decimal | None = None,
     max_price: Decimal | None = None,
 ) -> list[Product]:
-    query = db.query(Product).filter(Product.is_active == True)
+    query = (
+        db.query(Product)
+        .options(
+            joinedload(Product.category)
+            .joinedload(Category.parent)
+            .joinedload(Category.parent)
+        )
+        .filter(Product.is_active == True)
+    )
 
     if category_id is not None:
-        query = query.filter(Product.category_id == category_id)
+        category_ids = category_service.get_descendant_category_ids(db, category_id)
+        query = query.filter(Product.category_id.in_(category_ids))
 
     if search:
-        query = query.filter(Product.title.ilike(f"%{search}%"))
+        search_terms = [search.strip()]
+        normalized_search = search.strip().lower().replace(" ", "")
+        aliases = {
+            "rdr2": "red dead redemption 2",
+            "rdr": "red dead redemption",
+        }
+        if normalized_search in aliases:
+            search_terms.append(aliases[normalized_search])
+            if normalized_search == "rdr2":
+                search_terms.append("red dead redemption")
+
+        matching_category_ids: set[int] = set()
+        lowered_terms = [term.lower() for term in search_terms if term]
+        for category in category_service.list_categories(db):
+            haystack = f"{category.name} {category.slug}".lower()
+            if any(term in haystack for term in lowered_terms):
+                matching_category_ids.update(
+                    category_service.get_descendant_category_ids(db, category.id)
+                )
+
+        search_filters = [
+            Product.title.ilike(f"%{term}%")
+            for term in search_terms
+        ]
+        search_filters.extend(
+            Product.description.ilike(f"%{term}%")
+            for term in search_terms
+        )
+        search_filters.extend(
+            Category.name.ilike(f"%{term}%")
+            for term in search_terms
+        )
+        search_filters.extend(
+            Category.slug.ilike(f"%{term}%")
+            for term in search_terms
+        )
+        if matching_category_ids:
+            search_filters.append(Product.category_id.in_(matching_category_ids))
+
+        query = query.join(Category, Product.category_id == Category.id).filter(
+            or_(*search_filters)
+        )
 
     if min_price is not None:
         query = query.filter(Product.price >= min_price)
 
     if max_price is not None:
         query = query.filter(Product.price <= max_price)
+
+    if sort == "sales":
+        return query.order_by(Product.purchases_count.desc(), Product.created_at.desc()).all()
+
+    if sort == "price_asc":
+        return query.order_by(Product.price.asc(), Product.created_at.desc()).all()
+
+    if sort == "price_desc":
+        return query.order_by(Product.price.desc(), Product.created_at.desc()).all()
 
     return query.order_by(Product.created_at.desc()).all()
 
@@ -110,7 +172,11 @@ def get_product_or_404(db: Session, product_id: int) -> Product:
 def get_public_product_or_404(db: Session, product_id: int) -> Product:
     product = (
         db.query(Product)
-        .options(joinedload(Product.category))
+        .options(
+            joinedload(Product.category)
+            .joinedload(Category.parent)
+            .joinedload(Category.parent)
+        )
         .filter(Product.id == product_id)
         .filter(Product.is_active == True)
         .first()
