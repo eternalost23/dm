@@ -48,6 +48,21 @@ class Order(Base):
         nullable=False,
     )
 
+    product_title_snapshot: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    product_image_url_snapshot: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+    )
+
+    seller_username_snapshot: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow,

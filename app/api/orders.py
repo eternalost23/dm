@@ -52,6 +52,9 @@ def create_order(
         digital_item_id=digital_item.id,
         status=OrderStatus.PAID.value,
         total_price=product.price,
+        product_title_snapshot=product.title,
+        product_image_url_snapshot=product.image_url,
+        seller_username_snapshot=product.seller.username if product.seller else None,
     )
 
     digital_item.is_sold = True
@@ -69,6 +72,9 @@ def create_order(
         status=order.status,
         total_price=order.total_price,
         created_at=order.created_at,
+        product_title_snapshot=order.product_title_snapshot,
+        product_image_url_snapshot=order.product_image_url_snapshot,
+        seller_username_snapshot=order.seller_username_snapshot,
         digital_item_content=digital_item.content,
     )
 
@@ -120,5 +126,8 @@ def get_order(
         status=order.status,
         total_price=order.total_price,
         created_at=order.created_at,
+        product_title_snapshot=order.product_title_snapshot,
+        product_image_url_snapshot=order.product_image_url_snapshot,
+        seller_username_snapshot=order.seller_username_snapshot,
         digital_item_content=digital_item_content,
     )

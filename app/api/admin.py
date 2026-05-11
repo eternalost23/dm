@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
@@ -31,10 +33,12 @@ router = APIRouter(
 
 @router.get("/stats", response_model=AdminStatsRead)
 def get_admin_stats(
+    date_from: date | None = None,
+    date_to: date | None = None,
     _: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    return admin_stats.get_admin_stats(db)
+    return admin_stats.get_admin_stats(db, date_from=date_from, date_to=date_to)
 
 
 @router.get("/users", response_model=list[UserRead])
@@ -188,7 +192,7 @@ def delete_product(
     if hard:
         products.hard_delete_product(db, product)
     else:
-        products.soft_delete_product(db, product)
+        products.delete_product(db, product)
 
     return None
 

@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api.admin import router as admin_router
 from app.api.auth import router as auth_router
@@ -12,6 +13,7 @@ from app.api.products import router as products_router
 from app.api.reviews import router as reviews_router
 from app.api.seller import router as seller_router
 from app.api.users import router as users_router
+from app.api.uploads import router as uploads_router
 
 app = FastAPI(
     title="Digital Market API",
@@ -36,6 +38,7 @@ app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(users_router)
+app.include_router(uploads_router)
 app.include_router(categories_router)
 app.include_router(chats_router)
 app.include_router(products_router)
@@ -43,6 +46,8 @@ app.include_router(seller_router)
 app.include_router(orders_router)
 app.include_router(reviews_router)
 app.include_router(favorites_router)
+
+app.mount("/static", StaticFiles(directory="public", check_dir=False), name="static")
 
 
 @app.get("/")

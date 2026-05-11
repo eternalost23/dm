@@ -21,6 +21,9 @@ def order_to_detail(order: Order) -> OrderDetailRead:
         status=order.status,
         total_price=order.total_price,
         created_at=order.created_at,
+        product_title_snapshot=order.product_title_snapshot,
+        product_image_url_snapshot=order.product_image_url_snapshot,
+        seller_username_snapshot=order.seller_username_snapshot,
         digital_item_content=digital_item_content,
     )
 
@@ -65,8 +68,11 @@ def list_seller_orders(db: Session, seller_id: int) -> list[SellerOrderRead]:
             status=order.status,
             total_price=order.total_price,
             created_at=order.created_at,
+            product_title_snapshot=order.product_title_snapshot,
+            product_image_url_snapshot=order.product_image_url_snapshot,
+            seller_username_snapshot=order.seller_username_snapshot,
             buyer_email=order.buyer.email,
-            product_title=order.product.title,
+            product_title=order.product_title_snapshot or order.product.title,
         )
         for order in orders
     ]

@@ -1,9 +1,11 @@
 from datetime import datetime
+from decimal import Decimal
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
-from app.models import ChatMessage, ChatThread, Product, User
+from app.models import Category, ChatMessage, ChatThread, Product, User
+from app.models.user import UserRole
 from app.schemas.chat import ChatMessageCreate, ChatThreadRead
 
 
@@ -57,6 +59,84 @@ def list_all_threads(db: Session) -> list[ChatThread]:
         .order_by(ChatThread.updated_at.desc())
         .all()
     )
+
+
+def get_or_create_support_thread(db: Session, current_user: User) -> ChatThread:
+    admin = (
+        db.query(User)
+        .filter(User.role == UserRole.ADMIN.value)
+        .filter(User.is_active == True)
+        .order_by(User.id.asc())
+        .first()
+    )
+
+    if admin is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Support administrator not found",
+        )
+
+    if current_user.id == admin.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Admin cannot open support chat with themselves",
+        )
+
+    category = db.query(Category).filter(Category.slug == "support").first()
+    if category is None:
+        category = Category(
+            name="Поддержка",
+            slug="support",
+            description="Служебная категория для обращений в поддержку",
+            is_archived=True,
+        )
+        db.add(category)
+        db.commit()
+        db.refresh(category)
+
+    product = (
+        db.query(Product)
+        .filter(Product.seller_id == admin.id)
+        .filter(Product.title == "Поддержка")
+        .first()
+    )
+    if product is None:
+        product = Product(
+            seller_id=admin.id,
+            category_id=category.id,
+            title="Поддержка",
+            description="Чат с поддержкой Digital Market",
+            price=Decimal("0.01"),
+            is_active=False,
+        )
+        db.add(product)
+        db.commit()
+        db.refresh(product)
+
+    thread = (
+        db.query(ChatThread)
+        .filter(ChatThread.product_id == product.id)
+        .filter(ChatThread.buyer_id == current_user.id)
+        .filter(ChatThread.seller_id == admin.id)
+        .first()
+    )
+    if thread is None:
+        thread = ChatThread(
+            buyer_id=current_user.id,
+            seller_id=admin.id,
+            product_id=product.id,
+        )
+        db.add(thread)
+        db.commit()
+        thread = get_thread_for_user_or_404(db, thread.id, current_user)
+        create_message(
+            db,
+            thread=thread,
+            sender=current_user,
+            message_data=ChatMessageCreate(body="Здравствуйте, нужна помощь."),
+        )
+
+    return get_thread_for_user_or_404(db, thread.id, current_user)
 
 
 def get_thread_for_user_or_404(
@@ -189,11 +269,21 @@ def create_message(
             detail="Only chat participants can send messages",
         )
 
+    body = (message_data.body or "").strip()
+    if not body and not message_data.media_url:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Message text or attachment is required",
+        )
+
     now = datetime.utcnow()
     message = ChatMessage(
         thread_id=thread.id,
         sender_id=sender.id,
-        body=message_data.body,
+        body=body,
+        media_url=message_data.media_url,
+        media_type=message_data.media_type,
+        media_name=message_data.media_name,
         created_at=now,
     )
     thread.updated_at = now

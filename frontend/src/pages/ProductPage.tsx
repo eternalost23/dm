@@ -6,10 +6,11 @@ import {
   CheckCheck,
   Heart,
   Home,
-  MessageSquare,
   Send,
   ShoppingBasket,
   Star,
+  Store,
+  Paperclip,
   X,
 } from 'lucide-react'
 import api from '../lib/api'
@@ -17,6 +18,8 @@ import type { ChatMessage, ChatThread, Product, Review } from '../types'
 import { useAuth } from '../hooks/useAuth'
 import { addCartItem } from '../lib/cart'
 import { Button } from '../components/ui/button'
+import { uploadFile, toAbsoluteMediaUrl } from '../lib/uploads'
+import { getProductImage } from '../lib/productImages'
 
 const formatPrice = (price: number) =>
   new Intl.NumberFormat('ru-RU').format(Number(price))
@@ -27,14 +30,29 @@ const getSalesLabel = (count: number) => {
     : `Продано ${count}`
 }
 
-const getCategoryPathText = (product: Product) =>
-  product.category_path?.map((category) => category.name).join(' / ') || ''
-
 const formatMessageTime = (value: string) =>
   new Intl.DateTimeFormat('ru-RU', {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(value))
+
+const getMessageDateKey = (value: string) => new Date(value).toDateString()
+
+const formatMessageDate = (value: string) => {
+  const date = new Date(value)
+  const today = new Date()
+  if (date.toDateString() === today.toDateString()) return 'Сегодня'
+
+  const yesterday = new Date()
+  yesterday.setDate(today.getDate() - 1)
+  if (date.toDateString() === yesterday.toDateString()) return 'Вчера'
+
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  }).format(date)
+}
 
 export function ProductPage() {
   const { id } = useParams<{ id: string }>()
@@ -47,6 +65,7 @@ export function ProductPage() {
   const [chatThread, setChatThread] = useState<ChatThread | null>(null)
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [chatText, setChatText] = useState('')
+  const [chatFile, setChatFile] = useState<File | null>(null)
   const { user } = useAuth()
   const navigate = useNavigate()
 
@@ -158,27 +177,39 @@ export function ProductPage() {
         return
       }
       console.error('Failed to open chat:', error)
-      alert(error.response?.data?.detail || 'Failed to open chat')
+      alert(error.response?.data?.detail || 'Не удалось открыть чат')
     }
   }
 
   const sendChatMessage = async (event: FormEvent) => {
     event.preventDefault()
-    if (!chatText.trim()) return
+    if (!chatText.trim() && !chatFile) return
 
     try {
+      const uploaded = chatFile ? await uploadFile(chatFile) : null
+      const payload = {
+        body: chatText.trim() || undefined,
+        media_url: uploaded?.url,
+        media_type: uploaded?.content_type,
+        media_name: uploaded?.filename,
+      }
+
       if (chatThread) {
-        await api.post(`/chats/${chatThread.id}/messages`, { body: chatText.trim() })
+        await api.post(`/chats/${chatThread.id}/messages`, payload)
         await fetchChatMessages(chatThread.id)
       } else {
         const response = await api.post('/chats', {
           product_id: parseInt(id!),
-          message: chatText.trim(),
+          message: chatText.trim() || undefined,
+          media_url: uploaded?.url,
+          media_type: uploaded?.content_type,
+          media_name: uploaded?.filename,
         })
         setChatThread(response.data)
         await fetchChatMessages(response.data.id)
       }
       setChatText('')
+      setChatFile(null)
     } catch (error) {
       console.error('Failed to send message:', error)
     }
@@ -187,7 +218,7 @@ export function ProductPage() {
   if (loading) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-8">
-        <div className="text-center">Loading...</div>
+        <div className="text-center">Загрузка...</div>
       </div>
     )
   }
@@ -195,7 +226,7 @@ export function ProductPage() {
   if (!product) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-8">
-        <div className="text-center">Product not found</div>
+        <div className="text-center">Товар не найден или был удален.</div>
       </div>
     )
   }
@@ -221,13 +252,7 @@ export function ProductPage() {
         <section className="rounded-3xl bg-white p-6">
           <div className="grid gap-5 md:grid-cols-[200px_minmax(0,1fr)]">
             <div className="relative aspect-square overflow-hidden rounded-lg bg-slate-100">
-              {product.image_url ? (
-                <img src={product.image_url} alt={product.title} className="h-full w-full object-cover" />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center text-sm text-slate-400">
-                  No image
-                </div>
-              )}
+              <img src={getProductImage(product)} alt={product.title} className="h-full w-full object-cover" />
               <button
                 type="button"
                 className="absolute right-0 top-0 inline-flex h-10 w-10 items-center justify-center rounded-bl-lg bg-slate-200/80 text-white transition hover:bg-blue-100 hover:text-blue-500"
@@ -244,45 +269,55 @@ export function ProductPage() {
                 <span className="text-slate-300">•</span>
                 <span className="text-blue-600">Отзывы {reviews.length}</span>
               </div>
-              <div className="mt-3 text-sm font-semibold text-slate-400">
-                {getCategoryPathText(product)}
-              </div>
             </div>
           </div>
         </section>
 
-        <aside className="rounded-3xl bg-white p-5 lg:row-span-3">
-          <div className="text-sm font-bold text-slate-500">Цена</div>
-          <div className="mt-2 text-3xl font-extrabold text-slate-900">
-            {formatPrice(product.price)} ₽
+        <aside className="space-y-3">
+          <div className="rounded-3xl bg-white p-5">
+            <div className="text-sm font-bold text-slate-500">Цена</div>
+            <div className="mt-2 text-3xl font-extrabold text-slate-900">
+              {formatPrice(product.price)} ₽
+            </div>
+            <div className="mt-5 grid grid-cols-[48px_minmax(0,1fr)] gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                className="h-12 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100"
+                onClick={addToCart}
+              >
+                <ShoppingBasket className="h-5 w-5" />
+              </Button>
+              <Button
+                type="button"
+                className="h-12 rounded-lg bg-blue-500 text-base font-bold hover:bg-blue-600"
+                onClick={buyNow}
+              >
+                Купить сейчас
+              </Button>
+            </div>
+            <p className="mt-4 text-xs font-medium leading-5 text-slate-400">
+              Нажимая на кнопку, вы соглашаетесь с правилами покупки.
+            </p>
           </div>
-          <div className="mt-5 grid grid-cols-[48px_minmax(0,1fr)] gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              className="h-12 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100"
-              onClick={addToCart}
-            >
-              <ShoppingBasket className="h-5 w-5" />
-            </Button>
-            <Button
-              type="button"
-              className="h-12 rounded-lg bg-blue-500 text-base font-bold hover:bg-blue-600"
-              onClick={buyNow}
-            >
-              Купить сейчас
+          <div className="rounded-3xl bg-white p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-base font-extrabold text-slate-700">
+                <Store className="h-5 w-5 text-slate-500" />
+                {product.seller_username || 'Продавец'}
+              </div>
+              <div className="flex items-center gap-1 text-base font-extrabold text-slate-700">
+                <Star className="h-5 w-5 fill-orange-400 text-orange-400" />
+                {product.seller_rating != null ? product.seller_rating : '—'}
+              </div>
+            </div>
+            <Button type="button" variant="secondary" className="mt-4 h-11 w-full" onClick={openChat}>
+              Написать продавцу
             </Button>
           </div>
-          <Button type="button" variant="outline" className="mt-3 h-11 w-full" onClick={openChat}>
-            <MessageSquare className="mr-2 h-4 w-4" />
-            Написать продавцу
-          </Button>
-          <p className="mt-4 text-xs font-medium leading-5 text-slate-400">
-            Нажимая на кнопку, вы соглашаетесь с правилами покупки.
-          </p>
         </aside>
 
-        <section className="rounded-2xl bg-white px-5 py-3">
+        <section className="rounded-2xl bg-white px-5 py-3 lg:col-start-1">
           <div className="flex items-center gap-5 text-base font-bold">
             <button
               type="button"
@@ -302,11 +337,10 @@ export function ProductPage() {
           </div>
         </section>
 
-        <section className="rounded-3xl bg-white p-6">
+        <section className="rounded-3xl bg-white p-6 lg:col-start-1">
           {activeTab === 'description' ? (
             <>
-              <h2 className="text-2xl font-extrabold text-slate-950">Описание товара</h2>
-              <div className="mt-6 rounded-xl bg-slate-50 p-5 text-base leading-7 text-slate-800">
+              <div className="rounded-xl bg-slate-50 p-5 text-base leading-7 text-slate-800">
                 {product.description || 'Описание пока не добавлено.'}
               </div>
             </>
@@ -345,7 +379,7 @@ export function ProductPage() {
             <div className="flex items-center gap-3 border-b p-4">
               <Link to={`/products/${product.id}`} className="h-14 w-14 overflow-hidden rounded-lg bg-slate-100">
                 {(chatThread?.product_image_url || product.image_url) ? (
-                  <img src={chatThread?.product_image_url || product.image_url} alt="" className="h-full w-full object-cover" />
+                  <img src={toAbsoluteMediaUrl(chatThread?.product_image_url || product.image_url)} alt="" className="h-full w-full object-cover" />
                 ) : null}
               </Link>
               <div className="min-w-0 flex-1">
@@ -370,27 +404,51 @@ export function ProductPage() {
               </button>
             </div>
             <div className="flex-1 space-y-3 overflow-y-auto bg-slate-50 p-4">
-              {chatMessages.map((message) => {
+              {chatMessages.map((message, index) => {
                 const own = message.sender_id === user?.id
+                const showDate = index === 0 || getMessageDateKey(message.created_at) !== getMessageDateKey(chatMessages[index - 1].created_at)
+                const displayBody = message.media_url && message.body === 'Вложение' ? '' : message.body
                 return (
-                  <div key={message.id} className={`flex ${own ? 'justify-end' : 'justify-start'}`}>
-                    <div
-                      className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm shadow-sm ${
-                        own
-                          ? 'rounded-br-md bg-sky-100 text-slate-900'
-                          : 'rounded-bl-md bg-white text-slate-800'
-                      }`}
-                    >
-                      <div className="flex flex-wrap items-end gap-x-2 gap-y-1">
-                        <span>{message.body}</span>
-                        <span className="ml-auto inline-flex items-center gap-1 text-xs text-sky-500">
+                  <div key={message.id}>
+                    {showDate && (
+                      <div className="my-4 flex items-center justify-center">
+                        <span className="rounded-md border bg-white px-3 py-1 text-sm text-slate-500">
+                          {formatMessageDate(message.created_at)}
+                        </span>
+                      </div>
+                    )}
+                    <div className={`flex ${own ? 'justify-end' : 'justify-start'}`}>
+                      <div className="max-w-[80%]">
+                        <div
+                          className={`rounded-2xl px-4 py-2 text-sm shadow-sm ${
+                            own
+                              ? 'rounded-br-md bg-sky-100 text-slate-900'
+                              : 'rounded-bl-md bg-white text-slate-800'
+                          }`}
+                        >
+                          <div className="flex flex-wrap items-end gap-x-2 gap-y-1">
+                            {displayBody && <span className="whitespace-pre-wrap break-words">{displayBody}</span>}
+                            {message.media_url && (
+                              message.media_type?.startsWith('image/') ? (
+                                <a href={toAbsoluteMediaUrl(message.media_url)} target="_blank" rel="noreferrer" className="block w-full">
+                                  <img src={toAbsoluteMediaUrl(message.media_url)} alt={message.media_name || ''} className="mt-2 max-h-64 rounded-lg object-contain" />
+                                </a>
+                            ) : message.media_name ? (
+                              <a href={toAbsoluteMediaUrl(message.media_url)} target="_blank" rel="noreferrer" className="mt-2 block font-bold text-blue-600">
+                                  {message.media_name}
+                              </a>
+                              ) : null
+                            )}
+                          </div>
+                        </div>
+                        <div className={`mt-1 inline-flex items-center gap-1 text-xs text-slate-400 ${own ? 'float-right' : ''}`}>
                           {formatMessageTime(message.created_at)}
                           {own && (
                             message.is_read
                               ? <CheckCheck className="h-4 w-4" />
                               : <Check className="h-4 w-4" />
                           )}
-                        </span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -398,13 +456,22 @@ export function ProductPage() {
               })}
               {chatMessages.length === 0 && <p className="text-sm text-slate-500">Сообщений пока нет.</p>}
             </div>
-            <form className="flex gap-2 border-t p-3" onSubmit={sendChatMessage}>
+            <form className="flex flex-wrap gap-2 border-t p-3" onSubmit={sendChatMessage}>
               <input
                 value={chatText}
                 onChange={(event) => setChatText(event.target.value)}
                 className="h-11 min-w-0 flex-1 rounded-md border border-input px-3"
                 placeholder="Сообщение"
               />
+              <label className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-md border border-input text-slate-500 hover:bg-slate-50" title={chatFile?.name || 'Прикрепить файл'}>
+                <Paperclip className="h-5 w-5" />
+                <input
+                  type="file"
+                  accept="image/*,video/*,.pdf,.txt"
+                  onChange={(event) => setChatFile(event.target.files?.[0] || null)}
+                  className="hidden"
+                />
+              </label>
               <Button className="h-11">
                 <Send className="h-4 w-4" />
               </Button>

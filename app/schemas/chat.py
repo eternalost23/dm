@@ -6,10 +6,16 @@ from pydantic import BaseModel, ConfigDict, Field
 class ChatStart(BaseModel):
     product_id: int
     message: str | None = Field(default=None, min_length=1, max_length=5000)
+    media_url: str | None = None
+    media_type: str | None = Field(default=None, max_length=100)
+    media_name: str | None = Field(default=None, max_length=255)
 
 
 class ChatMessageCreate(BaseModel):
-    body: str = Field(min_length=1, max_length=5000)
+    body: str | None = Field(default=None, max_length=5000)
+    media_url: str | None = None
+    media_type: str | None = Field(default=None, max_length=100)
+    media_name: str | None = Field(default=None, max_length=255)
 
 
 class ChatMessageRead(BaseModel):
@@ -17,6 +23,9 @@ class ChatMessageRead(BaseModel):
     thread_id: int
     sender_id: int
     body: str
+    media_url: str | None = None
+    media_type: str | None = None
+    media_name: str | None = None
     created_at: datetime
     is_read: bool
 

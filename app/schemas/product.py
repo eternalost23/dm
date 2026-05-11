@@ -44,6 +44,9 @@ class ProductRead(ProductBase):
     created_at: datetime
     updated_at: datetime
     category_path: list[ProductCategoryPathItem] = Field(default_factory=list)
+    seller_username: str | None = None
+    seller_rating: float | None = None
+    rating: float | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -102,3 +102,60 @@ def create_product_review(
     db.refresh(review)
 
     return review
+
+
+@router.patch("/{product_id}/reviews/{review_id}", response_model=ReviewRead)
+def update_product_review(
+    product_id: int,
+    review_id: int,
+    review_data: ReviewCreate,
+    current_buyer: User = Depends(get_current_buyer),
+    db: Session = Depends(get_db),
+):
+    review = (
+        db.query(Review)
+        .filter(Review.id == review_id)
+        .filter(Review.product_id == product_id)
+        .filter(Review.buyer_id == current_buyer.id)
+        .first()
+    )
+
+    if review is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Review not found",
+        )
+
+    review.rating = review_data.rating
+    review.comment = review_data.comment
+    db.commit()
+    db.refresh(review)
+
+    return review
+
+
+@router.delete("/{product_id}/reviews/{review_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_product_review(
+    product_id: int,
+    review_id: int,
+    current_buyer: User = Depends(get_current_buyer),
+    db: Session = Depends(get_db),
+):
+    review = (
+        db.query(Review)
+        .filter(Review.id == review_id)
+        .filter(Review.product_id == product_id)
+        .filter(Review.buyer_id == current_buyer.id)
+        .first()
+    )
+
+    if review is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Review not found",
+        )
+
+    db.delete(review)
+    db.commit()
+
+    return None

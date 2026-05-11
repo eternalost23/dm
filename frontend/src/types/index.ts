@@ -42,6 +42,7 @@ export interface Category {
   parent_id?: number | null
   description?: string | null
   image_url?: string | null
+  is_archived: boolean
 }
 
 export interface PopularCategory extends Category {
@@ -71,6 +72,9 @@ export interface Product {
   }>
   category?: Category
   seller?: User
+  seller_username?: string | null
+  seller_rating?: number | null
+  rating?: number | null
 }
 
 export interface ProductCreate {
@@ -104,6 +108,12 @@ export interface AdminStats {
   paid_orders_count: number
   reviews_count: number
   favorites_count: number
+  daily_sales: Array<{ period: string; value: number }>
+  daily_new_users: Array<{ period: string; value: number }>
+  daily_orders: Array<{ period: string; value: number }>
+  weekly_sales: Array<{ period: string; value: number }>
+  weekly_new_users: Array<{ period: string; value: number }>
+  weekly_orders: Array<{ period: string; value: number }>
 }
 
 // Order types
@@ -115,6 +125,9 @@ export interface Order {
   total_price: number
   status: 'pending' | 'paid' | 'cancelled'
   created_at: string
+  product_title_snapshot?: string | null
+  product_image_url_snapshot?: string | null
+  seller_username_snapshot?: string | null
   product?: Product
   buyer?: User
   digital_item_content?: string | null
@@ -154,6 +167,9 @@ export interface ChatMessage {
   thread_id: number
   sender_id: number
   body: string
+  media_url?: string | null
+  media_type?: string | null
+  media_name?: string | null
   created_at: string
   is_read: boolean
 }

@@ -7,6 +7,7 @@ class CategoryBase(BaseModel):
     parent_id: int | None = None
     description: str | None = None
     image_url: str | None = None
+    is_archived: bool = False
 
 
 class CategoryCreate(CategoryBase):
@@ -19,6 +20,7 @@ class CategoryUpdate(BaseModel):
     parent_id: int | None = None
     description: str | None = None
     image_url: str | None = None
+    is_archived: bool | None = None
 
 
 class CategoryRead(CategoryBase):

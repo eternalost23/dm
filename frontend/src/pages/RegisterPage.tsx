@@ -9,13 +9,13 @@ import { Input } from '../components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 
 const registerSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  username: z.string().min(3, 'Username must be at least 3 characters'),
+  email: z.string().email('Введите корректный email'),
+  username: z.string().min(3, 'Минимум 3 символа'),
   role: z.enum(['buyer', 'seller']),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  password: z.string().min(6, 'Минимум 6 символов'),
   confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
+  message: 'Пароли не совпадают',
   path: ["confirmPassword"],
 })
 
@@ -51,7 +51,7 @@ export function RegisterPage() {
       })
       navigate('/')
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Registration failed')
+      setError(err.response?.data?.detail || 'Не удалось зарегистрироваться')
     } finally {
       setIsLoading(false)
     }
@@ -61,9 +61,9 @@ export function RegisterPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Register</CardTitle>
+          <CardTitle>Регистрация</CardTitle>
           <CardDescription>
-            Create your account to start buying and selling
+            Создайте аккаунт для покупок или продаж
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -85,7 +85,7 @@ export function RegisterPage() {
             <div>
               <Input
                 {...register('username')}
-                placeholder="Username"
+                placeholder="Имя пользователя"
                 className={errors.username ? 'border-red-500' : ''}
               />
               {errors.username && (
@@ -100,8 +100,8 @@ export function RegisterPage() {
                 {...register('role')}
                 className="w-full h-10 px-3 py-2 border border-input rounded-md bg-background text-sm"
               >
-                <option value="buyer">Buyer</option>
-                <option value="seller">Seller</option>
+                <option value="buyer">Покупатель</option>
+                <option value="seller">Продавец</option>
               </select>
             </div>
 
@@ -109,7 +109,7 @@ export function RegisterPage() {
               <Input
                 {...register('password')}
                 type="password"
-                placeholder="Password"
+                placeholder="Пароль"
                 className={errors.password ? 'border-red-500' : ''}
               />
               {errors.password && (
@@ -123,7 +123,7 @@ export function RegisterPage() {
               <Input
                 {...register('confirmPassword')}
                 type="password"
-                placeholder="Confirm Password"
+                placeholder="Повторите пароль"
                 className={errors.confirmPassword ? 'border-red-500' : ''}
               />
               {errors.confirmPassword && (
@@ -138,15 +138,15 @@ export function RegisterPage() {
             )}
 
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Creating account...' : 'Register'}
+              {isLoading ? 'Создание...' : 'Зарегистрироваться'}
             </Button>
           </form>
 
           <div className="mt-4 text-center">
             <p className="text-sm text-gray-600">
-              Already have an account?{' '}
+              Уже есть аккаунт?{' '}
               <Link to="/login" className="text-primary hover:underline">
-                Login
+                Войти
               </Link>
             </p>
           </div>

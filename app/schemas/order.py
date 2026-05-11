@@ -18,6 +18,9 @@ class OrderRead(BaseModel):
     status: str
     total_price: Decimal
     created_at: datetime
+    product_title_snapshot: str | None = None
+    product_image_url_snapshot: str | None = None
+    seller_username_snapshot: str | None = None
     product: ProductRead | None = None
 
     model_config = ConfigDict(from_attributes=True)

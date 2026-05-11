@@ -5,7 +5,7 @@ from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
-from app.models import Category, Product, User
+from app.models import Category, ChatMessage, ChatThread, DigitalItem, Favorite, Order, Product, Review, User
 from app.models.user import UserRole
 from app.schemas.admin import AdminProductCreate, AdminProductUpdate
 from app.schemas.product import ProductCreate, ProductUpdate
@@ -59,6 +59,8 @@ def list_public_products(
             .joinedload(Category.parent)
         )
         .filter(Product.is_active == True)
+        .filter(Product.is_deleted == False)
+        .filter(Category.is_archived == False)
     )
 
     if category_id is not None:
@@ -134,7 +136,7 @@ def list_products(
     category_id: int | None = None,
     is_active: bool | None = None,
 ) -> list[Product]:
-    query = db.query(Product)
+    query = db.query(Product).filter(Product.is_deleted == False)
 
     if seller_id is not None:
         query = query.filter(Product.seller_id == seller_id)
@@ -152,6 +154,7 @@ def list_seller_products(db: Session, seller_id: int) -> list[Product]:
     return (
         db.query(Product)
         .filter(Product.seller_id == seller_id)
+        .filter(Product.is_deleted == False)
         .order_by(Product.created_at.desc())
         .all()
     )
@@ -179,6 +182,7 @@ def get_public_product_or_404(db: Session, product_id: int) -> Product:
         )
         .filter(Product.id == product_id)
         .filter(Product.is_active == True)
+        .filter(Product.is_deleted == False)
         .first()
     )
 
@@ -201,6 +205,7 @@ def get_seller_product_or_404(
         db.query(Product)
         .filter(Product.id == product_id)
         .filter(Product.seller_id == seller_id)
+        .filter(Product.is_deleted == False)
         .first()
     )
 
@@ -311,15 +316,68 @@ def update_admin_product(
     return update_product_fields(db, product, data)
 
 
+def delete_product_links(db: Session, product: Product) -> None:
+    db.query(Favorite).filter(Favorite.product_id == product.id).delete(
+        synchronize_session=False,
+    )
+    thread_ids = [
+        thread_id
+        for (thread_id,) in db.query(ChatThread.id)
+        .filter(ChatThread.product_id == product.id)
+        .all()
+    ]
+    if thread_ids:
+        db.query(ChatMessage).filter(ChatMessage.thread_id.in_(thread_ids)).delete(
+            synchronize_session=False,
+        )
+    db.query(ChatThread).filter(ChatThread.product_id == product.id).delete(
+        synchronize_session=False,
+    )
+    db.query(Order).filter(Order.product_id == product.id).update(
+        {Order.digital_item_id: None},
+        synchronize_session=False,
+    )
+    db.query(DigitalItem).filter(DigitalItem.product_id == product.id).delete(
+        synchronize_session=False,
+    )
+
+
 def soft_delete_product(db: Session, product: Product) -> Product:
     product.is_active = False
+    product.is_deleted = True
+    delete_product_links(db, product)
     db.commit()
     db.refresh(product)
 
     return product
 
 
+def delete_product(db: Session, product: Product) -> Product | None:
+    has_orders = (
+        db.query(Order.id)
+        .filter(Order.product_id == product.id)
+        .first()
+        is not None
+    )
+
+    if has_orders:
+        return soft_delete_product(db, product)
+
+    delete_product_links(db, product)
+    db.query(Review).filter(Review.product_id == product.id).delete(
+        synchronize_session=False,
+    )
+    db.delete(product)
+    db.commit()
+
+    return None
+
+
 def hard_delete_product(db: Session, product: Product) -> None:
+    delete_product_links(db, product)
+    db.query(Review).filter(Review.product_id == product.id).delete(
+        synchronize_session=False,
+    )
     db.delete(product)
 
     try:

@@ -9,8 +9,8 @@ import { Input } from '../components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 
 const loginSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(1, 'Password is required'),
+  email: z.string().email('Введите корректный email'),
+  password: z.string().min(1, 'Введите пароль'),
 })
 
 type LoginForm = z.infer<typeof loginSchema>
@@ -37,7 +37,7 @@ export function LoginPage() {
       await login(data)
       navigate('/')
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Login failed')
+      setError(err.response?.data?.detail || 'Не удалось войти')
     } finally {
       setIsLoading(false)
     }
@@ -47,9 +47,9 @@ export function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Login</CardTitle>
+          <CardTitle>Вход</CardTitle>
           <CardDescription>
-            Enter your credentials to access your account
+            Введите данные аккаунта
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -72,7 +72,7 @@ export function LoginPage() {
               <Input
                 {...register('password')}
                 type="password"
-                placeholder="Password"
+                placeholder="Пароль"
                 className={errors.password ? 'border-red-500' : ''}
               />
               {errors.password && (
@@ -87,15 +87,15 @@ export function LoginPage() {
             )}
 
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Logging in...' : 'Login'}
+              {isLoading ? 'Вход...' : 'Войти'}
             </Button>
           </form>
 
           <div className="mt-4 text-center">
             <p className="text-sm text-gray-600">
-              Don't have an account?{' '}
+              Нет аккаунта?{' '}
               <Link to="/register" className="text-primary hover:underline">
-                Register
+                Зарегистрироваться
               </Link>
             </p>
           </div>

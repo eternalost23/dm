@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
-import { Grid2X2, Home, List, SlidersHorizontal } from 'lucide-react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Grid2X2, Heart, Home, List, SlidersHorizontal } from 'lucide-react'
 import api from '../lib/api'
 import type { Category, Product } from '../types'
 import { Button } from '../components/ui/button'
+import { useAuth } from '../hooks/useAuth'
+import { fetchFavoriteProductIds, onFavoritesChanged, toggleFavoriteProduct } from '../lib/favorites'
+import { getProductImage } from '../lib/productImages'
+import { toAbsoluteMediaUrl } from '../lib/uploads'
 
 const formatPrice = (price: number) =>
   new Intl.NumberFormat('ru-RU').format(Number(price))
@@ -18,6 +22,8 @@ const getCategoryPathText = (product: Product) =>
   product.category_path?.map((category) => category.name).join(' / ') || ''
 
 export function SearchPage() {
+  const { user } = useAuth()
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const query = searchParams.get('q') || ''
   const categoryId = searchParams.get('category_id')
@@ -26,10 +32,16 @@ export function SearchPage() {
   const [categories, setCategories] = useState<Category[]>([])
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
+  const [favoriteIds, setFavoriteIds] = useState<Set<number>>(new Set())
 
   useEffect(() => {
     fetchSearchData()
   }, [query, categoryId, sort])
+
+  useEffect(() => {
+    refreshFavorites()
+    return onFavoritesChanged(refreshFavorites)
+  }, [user])
 
   const fetchSearchData = async () => {
     setLoading(true)
@@ -51,6 +63,23 @@ export function SearchPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const refreshFavorites = async () => {
+    if (!user) {
+      setFavoriteIds(new Set())
+      return
+    }
+    setFavoriteIds(await fetchFavoriteProductIds())
+  }
+
+  const toggleFavorite = async (product: Product) => {
+    if (!user) {
+      navigate('/login')
+      return
+    }
+    await toggleFavoriteProduct(product.id, favoriteIds.has(product.id))
+    await refreshFavorites()
   }
 
   const categoryById = useMemo(
@@ -164,7 +193,7 @@ export function SearchPage() {
             <div className="aspect-square overflow-hidden rounded-lg bg-slate-100">
               {mainCategory?.image_url || products[0]?.image_url ? (
                 <img
-                  src={mainCategory?.image_url || products[0]?.image_url}
+                  src={mainCategory?.image_url ? toAbsoluteMediaUrl(mainCategory.image_url) : getProductImage(products[0])}
                   alt={title}
                   className="h-full w-full object-cover"
                 />
@@ -208,13 +237,7 @@ export function SearchPage() {
                   }`}
                 >
                   <div className="aspect-square overflow-hidden rounded-md bg-slate-100">
-                    {product.image_url ? (
-                      <img src={product.image_url} alt={product.title} className="h-full w-full object-cover" />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-xs text-slate-400">
-                        No image
-                      </div>
-                    )}
+                    <img src={getProductImage(product)} alt={product.title} className="h-full w-full object-cover" />
                   </div>
                   <div className="min-w-0">
                     <div className="text-xl font-extrabold">{formatPrice(product.price)} ₽</div>
@@ -276,20 +299,27 @@ export function SearchPage() {
             </div>
 
             {loading ? (
-              <div className="py-10 text-center text-slate-500">Loading...</div>
+              <div className="py-10 text-center text-slate-500">Загрузка...</div>
             ) : (
               <div className="grid grid-cols-2 gap-x-6 gap-y-8 md:grid-cols-3 xl:grid-cols-4">
                 {filteredProducts.map((product) => (
                   <article key={product.id} className="min-w-0">
                     <Link to={`/products/${product.id}`}>
-                      <div className="aspect-square overflow-hidden rounded-lg bg-slate-100">
-                        {product.image_url ? (
-                          <img src={product.image_url} alt={product.title} className="h-full w-full object-cover" />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center text-sm text-slate-400">
-                            No image
-                          </div>
-                        )}
+                      <div className="relative aspect-square overflow-hidden rounded-lg bg-slate-100">
+                        <img src={getProductImage(product)} alt={product.title} className="h-full w-full object-cover" />
+                        <button
+                          type="button"
+                          className={`absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-md bg-white/90 ${
+                            favoriteIds.has(product.id) ? 'text-blue-600' : 'text-slate-400'
+                          }`}
+                          onClick={(event) => {
+                            event.preventDefault()
+                            toggleFavorite(product)
+                          }}
+                          aria-label="Избранное"
+                        >
+                          <Heart className={`h-5 w-5 ${favoriteIds.has(product.id) ? 'fill-current' : ''}`} />
+                        </button>
                       </div>
                     </Link>
                     <div className="mt-3 text-xl font-extrabold text-slate-950">

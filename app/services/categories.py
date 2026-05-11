@@ -6,8 +6,12 @@ from app.models import Category, Product
 from app.schemas.category import CategoryCreate, CategoryUpdate
 
 
-def list_categories(db: Session) -> list[Category]:
-    return db.query(Category).order_by(Category.id).all()
+def list_categories(db: Session, *, include_archived: bool = False) -> list[Category]:
+    query = db.query(Category)
+    if not include_archived:
+        query = query.filter(Category.is_archived == False)
+
+    return query.order_by(Category.id).all()
 
 
 def get_descendant_category_ids(db: Session, category_id: int) -> list[int]:
@@ -36,7 +40,12 @@ def list_popular_categories(db: Session, *, limit: int = 16) -> list[dict]:
     for category in all_categories:
         children_by_parent.setdefault(category.parent_id, []).append(category)
 
-    products = db.query(Product).filter(Product.is_active == True).all()
+    products = (
+        db.query(Product)
+        .filter(Product.is_active == True)
+        .filter(Product.is_deleted == False)
+        .all()
+    )
     products_by_category: dict[int, list[Product]] = {}
 
     for product in products:
@@ -95,6 +104,27 @@ def get_category_or_404(db: Session, category_id: int) -> Category:
     return category
 
 
+def get_category_descendants(db: Session, category_id: int) -> list[Category]:
+    categories = list_categories(db, include_archived=True)
+    children_by_parent: dict[int | None, list[Category]] = {}
+
+    for category in categories:
+        children_by_parent.setdefault(category.parent_id, []).append(category)
+
+    descendants: list[Category] = []
+    stack = [category_id]
+
+    while stack:
+        current_id = stack.pop()
+        category = next((item for item in categories if item.id == current_id), None)
+        if category is None:
+            continue
+        descendants.append(category)
+        stack.extend(child.id for child in children_by_parent.get(current_id, []))
+
+    return descendants
+
+
 def create_category(db: Session, category_data: CategoryCreate) -> Category:
     category = Category(**category_data.model_dump())
     db.add(category)
@@ -143,8 +173,40 @@ def update_category(
 
 
 def delete_category(db: Session, category_id: int) -> None:
+    from app.services import products as product_service
+
     category = get_category_or_404(db, category_id)
-    db.delete(category)
+    descendants = get_category_descendants(db, category.id)
+    descendant_ids = [item.id for item in descendants]
+    products = (
+        db.query(Product)
+        .filter(Product.category_id.in_(descendant_ids))
+        .filter(Product.is_deleted == False)
+        .all()
+    )
+
+    if products:
+        for product in products:
+            product_service.delete_product(db, product)
+
+        for descendant in descendants:
+            descendant.is_archived = True
+
+        db.commit()
+        return None
+
+    descendant_by_id = {item.id: item for item in descendants}
+
+    def depth(item: Category) -> int:
+        level = 0
+        parent_id = item.parent_id
+        while parent_id in descendant_by_id:
+            level += 1
+            parent_id = descendant_by_id[parent_id].parent_id
+        return level
+
+    for descendant in sorted(descendants, key=depth, reverse=True):
+        db.delete(descendant)
 
     try:
         db.commit()

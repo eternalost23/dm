@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -94,6 +94,21 @@ class ChatMessage(Base):
     body: Mapped[str] = mapped_column(
         Text,
         nullable=False,
+    )
+
+    media_url: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+    )
+
+    media_type: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    media_name: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
     )
 
     created_at: Mapped[datetime] = mapped_column(

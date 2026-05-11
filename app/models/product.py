@@ -57,6 +57,12 @@ class Product(Base):
         nullable=False,
     )
 
+    is_deleted: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow,
@@ -96,6 +102,30 @@ class Product(Base):
             category = category.parent
 
         return list(reversed(path))
+
+    @property
+    def seller_username(self) -> str | None:
+        return self.seller.username if self.seller is not None else None
+
+    @property
+    def seller_rating(self) -> float | None:
+        ratings = [
+            review.rating
+            for product in self.seller.products
+            for review in product.reviews
+        ] if self.seller is not None else []
+
+        if not ratings:
+            return None
+
+        return round(sum(ratings) / len(ratings), 1)
+
+    @property
+    def rating(self) -> float | None:
+        if not self.reviews:
+            return None
+
+        return round(sum(review.rating for review in self.reviews) / len(self.reviews), 1)
     
     digital_items = relationship(
         "DigitalItem",

@@ -38,10 +38,10 @@ def start_chat(
         user=current_user,
     )
 
-    if existing_thread is not None and not chat_data.message:
+    if existing_thread is not None and not chat_data.message and not chat_data.media_url:
         return chats.thread_to_read(existing_thread)
 
-    if existing_thread is None and not chat_data.message:
+    if existing_thread is None and not chat_data.message and not chat_data.media_url:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Message is required to start a new chat",
@@ -53,12 +53,17 @@ def start_chat(
         buyer=current_user,
     )
 
-    if chat_data.message:
+    if chat_data.message or chat_data.media_url:
         chats.create_message(
             db,
             thread=thread,
             sender=current_user,
-            message_data=ChatMessageCreate(body=chat_data.message),
+            message_data=ChatMessageCreate(
+                body=chat_data.message,
+                media_url=chat_data.media_url,
+                media_type=chat_data.media_type,
+                media_name=chat_data.media_name,
+            ),
         )
         thread = chats.get_thread_for_user_or_404(db, thread.id, current_user)
 
@@ -84,6 +89,14 @@ def get_product_chat(
         )
 
     return chats.thread_to_read(thread)
+
+
+@router.post("/support", response_model=ChatThreadRead, status_code=status.HTTP_201_CREATED)
+def open_support_chat(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return chats.thread_to_read(chats.get_or_create_support_thread(db, current_user))
 
 
 @router.get("/{thread_id}/messages", response_model=list[ChatMessageRead])

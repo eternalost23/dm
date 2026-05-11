@@ -12,6 +12,7 @@ import { AdminPage } from './pages/AdminPage'
 import { ChatsPage } from './pages/ChatsPage'
 import { SearchPage } from './pages/SearchPage'
 import { FavoritesPage } from './pages/FavoritesPage'
+import { PurchasesPage } from './pages/PurchasesPage'
 import './App.css'
 
 function App() {
@@ -33,6 +34,7 @@ function App() {
               <Route path="/chats" element={<ChatsPage />} />
               <Route path="/search" element={<SearchPage />} />
               <Route path="/favorites" element={<FavoritesPage />} />
+              <Route path="/purchases" element={<PurchasesPage />} />
               {/* TODO: Add more routes for cart, profile, seller dashboard, etc. */}
             </Routes>
           </main>

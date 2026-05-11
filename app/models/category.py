@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import Boolean, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -30,6 +30,12 @@ class Category(Base):
     image_url: Mapped[str | None] = mapped_column(
         String(500),
         nullable=True,
+    )
+
+    is_archived: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
     )
 
     parent_id: Mapped[int | None] = mapped_column(

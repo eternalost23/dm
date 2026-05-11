@@ -46,6 +46,11 @@ class AdminReviewUpdate(BaseModel):
     comment: str | None = None
 
 
+class AdminTimeSeriesPoint(BaseModel):
+    period: str
+    value: int
+
+
 class AdminStatsRead(BaseModel):
     users_count: int
     sellers_count: int
@@ -59,3 +64,9 @@ class AdminStatsRead(BaseModel):
     paid_orders_count: int
     reviews_count: int
     favorites_count: int
+    daily_sales: list[AdminTimeSeriesPoint] = Field(default_factory=list)
+    daily_new_users: list[AdminTimeSeriesPoint] = Field(default_factory=list)
+    daily_orders: list[AdminTimeSeriesPoint] = Field(default_factory=list)
+    weekly_sales: list[AdminTimeSeriesPoint] = Field(default_factory=list)
+    weekly_new_users: list[AdminTimeSeriesPoint] = Field(default_factory=list)
+    weekly_orders: list[AdminTimeSeriesPoint] = Field(default_factory=list)
