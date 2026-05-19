@@ -1,1 +1,1 @@
-"""API routers for the Digital Market application."""
+"""API routers for the ЦифроГрад application."""

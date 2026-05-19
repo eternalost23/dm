@@ -50,6 +50,12 @@ def create_product(
     response_model=CategoryRead,
     status_code=status.HTTP_201_CREATED,
 )
+def create_category(
+    category_data: CategoryCreate,
+    _: User = Depends(get_current_seller),
+    db: Session = Depends(get_db),
+):
+    return categories.create_category(db, category_data)
 
 
 @router.get("/stats")
@@ -121,12 +127,7 @@ def get_seller_stats(
             )
         ],
     }
-def create_category(
-    category_data: CategoryCreate,
-    _: User = Depends(get_current_seller),
-    db: Session = Depends(get_db),
-):
-    return categories.create_category(db, category_data)
+
 
 @router.patch("/products/{product_id}", response_model=ProductRead)
 def update_product(
@@ -157,6 +158,7 @@ def delete_product(
     products.delete_product(db, product)
     return None
 
+
 @router.get(
     "/products/{product_id}/items",
     response_model=list[DigitalItemRead],
@@ -171,6 +173,7 @@ def get_product_items(
         product_id=product_id,
         seller_id=current_seller.id,
     )
+
 
 @router.post(
     "/products/{product_id}/items",
@@ -189,6 +192,7 @@ def create_product_item(
         seller_id=current_seller.id,
         item_data=item_data,
     )
+
 
 @router.get("/orders", response_model=list[SellerOrderRead])
 def get_seller_orders(

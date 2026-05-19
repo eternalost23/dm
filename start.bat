@@ -1,5 +1,5 @@
 @echo off
-echo Starting Digital Market...
+echo Starting ЦифроГрад...
 
 echo Setting up backend...
 cd /d "%~dp0"
@@ -34,7 +34,7 @@ echo Starting frontend server...
 start cmd /k "npm run dev"
 
 echo.
-echo Digital Market is starting up!
+echo ЦифроГрад is starting up!
 echo Backend: http://localhost:8000
 echo Frontend: http://localhost:5173
 echo API Docs: http://localhost:8000/docs

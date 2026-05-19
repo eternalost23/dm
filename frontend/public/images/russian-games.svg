@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800">
+  <rect width="800" height="800" fill="#450A0A"/>
+  <rect x="120" y="246" width="560" height="276" rx="118" fill="#DC2626"/>
+  <circle cx="270" cy="384" r="56" fill="#F8FAFC"/>
+  <circle cx="530" cy="384" r="56" fill="#F8FAFC"/>
+  <path d="M238 384h64M270 352v64" stroke="#111827" stroke-width="22" stroke-linecap="round"/>
+  <circle cx="512" cy="366" r="13" fill="#111827"/>
+  <circle cx="548" cy="402" r="13" fill="#111827"/>
+  <path d="M282 244l70-88h96l70 88" fill="none" stroke="#FCA5A5" stroke-width="34" stroke-linecap="round"/>
+  <text x="174" y="680" fill="#FEE2E2" font-family="Arial, sans-serif" font-size="54" font-weight="800">RU Games</text>
+</svg>

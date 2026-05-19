@@ -16,7 +16,7 @@ from app.api.users import router as users_router
 from app.api.uploads import router as uploads_router
 
 app = FastAPI(
-    title="Digital Market API",
+    title="ЦифроГрад API",
     description="API for a digital goods marketplace",
     version="0.1.0",
 )
@@ -53,5 +53,5 @@ app.mount("/static", StaticFiles(directory="public", check_dir=False), name="sta
 @app.get("/")
 def root():
     return {
-        "message": "Digital Market API is running",
+        "message": "ЦифроГрад API is running",
     }

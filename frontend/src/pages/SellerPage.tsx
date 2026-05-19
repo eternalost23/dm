@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useAuth } from '../hooks/useAuth'
-import type { Product, Category } from '../types'
+import type { Product, Category, DigitalItem } from '../types'
 import api from '../lib/api'
 import { uploadFile } from '../lib/uploads'
 import { getProductImage } from '../lib/productImages'
@@ -12,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Badge } from '../components/ui/badge'
-import { Plus, Edit, Trash2, FolderPlus, Paperclip } from 'lucide-react'
+import { Plus, Edit, Trash2, FolderPlus, Paperclip, KeyRound, X } from 'lucide-react'
 
 type SellerOrder = {
   id: number
@@ -70,6 +71,12 @@ export function SellerPage() {
     description: '',
     image_url: '',
   })
+  const [keyManagerProduct, setKeyManagerProduct] = useState<Product | null>(null)
+  const [productKeys, setProductKeys] = useState<DigitalItem[]>([])
+  const [keyText, setKeyText] = useState('')
+  const [keysLoading, setKeysLoading] = useState(false)
+  const [keysSaving, setKeysSaving] = useState(false)
+  const [keyError, setKeyError] = useState<string | null>(null)
 
   const {
     register,
@@ -215,6 +222,62 @@ export function SellerPage() {
     }
   }
 
+  const loadProductKeys = async (product: Product) => {
+    setKeyManagerProduct(product)
+    setKeyText('')
+    setKeyError(null)
+    setKeysLoading(true)
+
+    try {
+      const response = await api.get(`/seller/products/${product.id}/items`)
+      setProductKeys(response.data.items || response.data)
+    } catch (error: any) {
+      console.error('Failed to load product keys:', error)
+      setProductKeys([])
+      setKeyError(error.response?.data?.detail || 'Не удалось загрузить ключи')
+    } finally {
+      setKeysLoading(false)
+    }
+  }
+
+  const closeKeyManager = () => {
+    setKeyManagerProduct(null)
+    setProductKeys([])
+    setKeyText('')
+    setKeyError(null)
+  }
+
+  const addProductKeys = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!keyManagerProduct) return
+
+    const keys = Array.from(
+      new Set(keyText.split(/\r?\n/).map((item) => item.trim()).filter(Boolean)),
+    )
+
+    if (keys.length === 0) {
+      setKeyError('Введите хотя бы один ключ.')
+      return
+    }
+
+    setKeysSaving(true)
+    setKeyError(null)
+
+    try {
+      await Promise.all(
+        keys.map((content) => api.post(`/seller/products/${keyManagerProduct.id}/items`, { content })),
+      )
+      const response = await api.get(`/seller/products/${keyManagerProduct.id}/items`)
+      setProductKeys(response.data.items || response.data)
+      setKeyText('')
+    } catch (error: any) {
+      console.error('Failed to add product keys:', error)
+      setKeyError(error.response?.data?.detail || 'Не удалось добавить ключи')
+    } finally {
+      setKeysSaving(false)
+    }
+  }
+
   const applyQuickRange = (days: 7 | 30 | 90) => {
     const to = new Date()
     const from = new Date()
@@ -315,6 +378,8 @@ export function SellerPage() {
     `border-l px-4 text-sm font-bold ${
       quickRangeDays === days ? 'bg-blue-500 text-white' : 'text-slate-700 hover:bg-slate-50'
     }`
+  const availableKeysCount = productKeys.filter((item) => !item.is_sold).length
+  const soldKeysCount = productKeys.length - availableKeysCount
 
   if (!user || user.role !== 'seller') {
     return (
@@ -697,6 +762,64 @@ export function SellerPage() {
           <h2 className="text-2xl font-extrabold text-slate-950">Мои товары</h2>
           <p className="mt-1 text-sm text-slate-500">Управление цифровыми товарами</p>
         </div>
+        {keyManagerProduct && (
+          <div className="mb-6 rounded-lg border border-blue-100 bg-blue-50/70 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2 text-lg font-extrabold text-slate-950">
+                  <KeyRound className="h-5 w-5 text-blue-600" />
+                  Ключи: {keyManagerProduct.title}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2 text-sm">
+                  <Badge variant="secondary">в наличии: {availableKeysCount}</Badge>
+                  <Badge variant="outline">продано: {soldKeysCount}</Badge>
+                  <Badge variant="outline">всего: {productKeys.length}</Badge>
+                </div>
+              </div>
+              <Button type="button" variant="ghost" size="sm" onClick={closeKeyManager}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <form className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px]" onSubmit={addProductKeys}>
+              <textarea
+                value={keyText}
+                onChange={(event) => setKeyText(event.target.value)}
+                placeholder="Один ключ на строку"
+                className="min-h-28 rounded-md border border-input bg-white px-3 py-2 font-mono text-sm"
+              />
+              <Button type="submit" disabled={keysSaving || keysLoading} className="h-11 self-start">
+                <KeyRound className="mr-2 h-4 w-4" />
+                {keysSaving ? 'Добавление...' : 'Добавить'}
+              </Button>
+            </form>
+
+            {keyError && (
+              <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+                {keyError}
+              </div>
+            )}
+
+            <div className="mt-4 max-h-72 overflow-y-auto rounded-md border bg-white">
+              {keysLoading ? (
+                <div className="px-4 py-8 text-center text-sm text-slate-500">Загрузка ключей...</div>
+              ) : productKeys.length === 0 ? (
+                <div className="px-4 py-8 text-center text-sm text-slate-500">Ключей для этого товара пока нет.</div>
+              ) : (
+                <div className="divide-y">
+                  {productKeys.map((item) => (
+                    <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                      <code className="break-all text-sm font-semibold text-slate-800">{item.content}</code>
+                      <Badge variant={item.is_sold ? 'secondary' : 'default'}>
+                        {item.is_sold ? 'продан' : 'в наличии'}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
           {products.length === 0 ? (
             <p className="text-gray-500">Товаров пока нет.</p>
           ) : (
@@ -722,6 +845,17 @@ export function SellerPage() {
                       </p>
                     </div>
                     <div className="relative z-10 flex flex-wrap items-center justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          loadProductKeys(product)
+                        }}
+                      >
+                        <KeyRound className="mr-2 h-4 w-4" />
+                        Ключи
+                      </Button>
                       <Button
                         variant="outline"
                         size="sm"

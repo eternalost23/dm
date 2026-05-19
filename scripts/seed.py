@@ -1,51 +1,121 @@
 import sys
+from datetime import date, datetime, time, timedelta
+from decimal import Decimal
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 sys.path.append(str(ROOT_DIR))
 
-from decimal import Decimal
-
 from app.core.database import SessionLocal
 from app.core.security import get_password_hash
-from app.models import Category, DigitalItem, Product, User
+from app.models import (
+    Category,
+    ChatMessage,
+    ChatThread,
+    DigitalItem,
+    Favorite,
+    Order,
+    Product,
+    Review,
+    User,
+)
+from app.models.order import OrderStatus
 from app.models.user import UserRole
 
 
-def get_or_create_user(
-    db,
-    *,
-    email: str,
-    username: str,
-    role: str,
-) -> User:
-    user = db.query(User).filter(User.email == email).first()
+def clear_market_data(db) -> None:
+    """Clear marketplace data while preserving existing users."""
+    for model in (
+        ChatMessage,
+        ChatThread,
+        Order,
+        Review,
+        Favorite,
+        DigitalItem,
+        Product,
+        Category,
+    ):
+        db.query(model).delete(synchronize_session=False)
 
-    if user:
-        user.username = username
-        user.hashed_password = get_password_hash("password")
-        user.role = role
-        user.is_active = True
-        db.commit()
-        db.refresh(user)
-        return user
+    db.commit()
 
-    user = User(
-        email=email,
-        username=username,
-        hashed_password=get_password_hash("password"),
-        role=role,
-        is_active=True,
+
+def get_seed_seller(db) -> User:
+    seller = (
+        db.query(User)
+        .filter(User.role == UserRole.SELLER.value)
+        .filter(User.is_active == True)
+        .order_by(User.id.asc())
+        .first()
     )
 
-    db.add(user)
+    if seller is not None:
+        return seller
+
+    seller = (
+        db.query(User)
+        .filter(User.role == UserRole.SELLER.value)
+        .order_by(User.id.asc())
+        .first()
+    )
+
+    if seller is not None:
+        return seller
+
+    seller = User(
+        email="seed-seller@example.com",
+        username="seed_seller",
+        hashed_password=get_password_hash("password"),
+        role=UserRole.SELLER.value,
+        is_active=True,
+    )
+    db.add(seller)
     db.commit()
-    db.refresh(user)
+    db.refresh(seller)
 
-    return user
+    return seller
 
 
-def get_or_create_category(
+def get_seed_buyers(db) -> list[User]:
+    demo_buyers = [
+        ("ivan.petrov@example.com", "Иван Петров"),
+        ("anna.smirnova@example.com", "Анна Смирнова"),
+        ("sergey.ivanov@example.com", "Сергей Иванов"),
+        ("maria.kuznetsova@example.com", "Мария Кузнецова"),
+        ("dmitry.popov@example.com", "Дмитрий Попов"),
+        ("elena.sokolova@example.com", "Елена Соколова"),
+        ("alexey.lebedev@example.com", "Алексей Лебедев"),
+        ("olga.novikova@example.com", "Ольга Новикова"),
+        ("pavel.morozov@example.com", "Павел Морозов"),
+        ("natalia.volkova@example.com", "Наталья Волкова"),
+        ("andrey.fedorov@example.com", "Андрей Федоров"),
+        ("ekaterina.orlova@example.com", "Екатерина Орлова"),
+    ]
+
+    for email, username in demo_buyers:
+        user = db.query(User).filter(User.email == email).first()
+
+        if user is None:
+            user = User(
+                email=email,
+                username=username,
+                hashed_password=get_password_hash("password"),
+                role=UserRole.BUYER.value,
+                is_active=True,
+            )
+            db.add(user)
+        else:
+            user.username = username
+            user.role = UserRole.BUYER.value
+            user.is_active = True
+
+    db.commit()
+
+    buyer_emails = [email for email, _ in demo_buyers]
+    return db.query(User).filter(User.email.in_(buyer_emails)).order_by(User.id.asc()).all()
+
+
+def create_category(
     db,
     *,
     name: str,
@@ -54,17 +124,6 @@ def get_or_create_category(
     description: str | None = None,
     image_url: str | None = None,
 ) -> Category:
-    category = db.query(Category).filter(Category.slug == slug).first()
-
-    if category:
-        category.name = name
-        category.parent_id = parent_id
-        category.description = description
-        category.image_url = image_url
-        db.commit()
-        db.refresh(category)
-        return category
-
     category = Category(
         name=name,
         slug=slug,
@@ -74,116 +133,130 @@ def get_or_create_category(
     )
 
     db.add(category)
-    db.commit()
-    db.refresh(category)
+    db.flush()
 
     return category
 
 
-def get_or_create_product(
+def create_product(
     db,
     *,
     seller_id: int,
     category_id: int,
     title: str,
     description: str,
-    price: Decimal,
-    image_url: str | None = None,
-    purchases_count: int = 0,
+    price: str,
+    image_url: str,
 ) -> Product:
-    product = db.query(Product).filter(Product.title == title).first()
-
-    if product:
-        product.seller_id = seller_id
-        product.category_id = category_id
-        product.description = description
-        product.price = price
-        product.image_url = image_url
-        product.purchases_count = max(product.purchases_count, purchases_count)
-        product.is_active = True
-        db.commit()
-        db.refresh(product)
-        return product
-
     product = Product(
         seller_id=seller_id,
         category_id=category_id,
         title=title,
         description=description,
-        price=price,
+        price=Decimal(price),
         image_url=image_url,
-        purchases_count=purchases_count,
+        purchases_count=0,
         is_active=True,
+        is_deleted=False,
     )
 
     db.add(product)
-    db.commit()
-    db.refresh(product)
+    db.flush()
 
     return product
 
 
-def create_digital_items(
-    db,
-    *,
-    product_id: int,
-    contents: list[str],
-) -> None:
-    existing_count = (
-        db.query(DigitalItem)
-        .filter(DigitalItem.product_id == product_id)
-        .count()
-    )
-
-    if existing_count > 0:
-        return
-
-    for content in contents:
+def create_available_digital_items(db, *, product: Product, amount: int = 6) -> None:
+    for index in range(1, amount + 1):
         digital_item = DigitalItem(
-            product_id=product_id,
-            content=content,
+            product_id=product.id,
+            content=f"CG-{product.id:04d}-FREE-{index:03d}-KEY-{(product.id * 97 + index * 13):05d}",
             is_sold=False,
         )
-
         db.add(digital_item)
 
-    db.commit()
+
+def create_paid_order(
+    db,
+    *,
+    buyer: User,
+    product: Product,
+    created_at: datetime,
+    sequence: int,
+) -> None:
+    digital_item = DigitalItem(
+        product_id=product.id,
+        content=f"CG-{product.id:04d}-SOLD-{sequence:05d}-KEY-{(product.id * 193 + sequence * 17):06d}",
+        is_sold=True,
+        created_at=created_at,
+    )
+    db.add(digital_item)
+    db.flush()
+
+    order = Order(
+        buyer_id=buyer.id,
+        product_id=product.id,
+        digital_item_id=digital_item.id,
+        status=OrderStatus.PAID.value,
+        total_price=product.price,
+        product_title_snapshot=product.title,
+        product_image_url_snapshot=product.image_url,
+        seller_username_snapshot=product.seller.username if product.seller else None,
+        created_at=created_at,
+    )
+    product.purchases_count += 1
+    db.add(order)
+
+
+def create_sales_history(db, *, products: list[Product], buyers: list[User]) -> int:
+    sequence = 1
+    today = date.today()
+
+    for product_index, product in enumerate(products):
+        sales_count = 3 + (product_index % 3)
+
+        for sale_index in range(sales_count):
+            days_ago = (product_index * 5 + sale_index * 11) % 90
+            order_date = today - timedelta(days=days_ago)
+            buyer = buyers[(sequence - 1) % len(buyers)]
+            created_at = datetime.combine(
+                order_date,
+                time(
+                    hour=9 + (product_index + sale_index * 2) % 10,
+                    minute=(product_index * 7 + sale_index * 19) % 60,
+                    second=0,
+                ),
+            )
+
+            create_paid_order(
+                db,
+                buyer=buyer,
+                product=product,
+                created_at=created_at,
+                sequence=sequence,
+            )
+            sequence += 1
+
+    return sequence - 1
 
 
 def seed_database() -> None:
     db = SessionLocal()
 
     try:
-        admin = get_or_create_user(
-            db,
-            email="admin@example.com",
-            username="admin",
-            role=UserRole.ADMIN.value,
-        )
-
-        seller = get_or_create_user(
-            db,
-            email="seller@example.com",
-            username="seller",
-            role=UserRole.SELLER.value,
-        )
-
-        buyer = get_or_create_user(
-            db,
-            email="buyer@example.com",
-            username="buyer",
-            role=UserRole.BUYER.value,
-        )
+        clear_market_data(db)
+        seller = get_seed_seller(db)
+        buyers = get_seed_buyers(db)
 
         root_data = [
-            ("Игры", "games", "Игры, дополнения, валюта и игровые сервисы"),
-            ("Социальные сети", "social-networks", "Аккаунты, подписки и продвижение"),
-            ("Программное обеспечение", "software", "Лицензии, подписки и AI-инструменты"),
-            ("Подарочные карты", "gift-cards", "Карты оплаты и пополнение баланса"),
+            ("Подписки и сервисы", "subscriptions", "Российские онлайн-сервисы, кино, музыка и книги"),
+            ("Игры", "games", "Ключи игр, внутриигровая валюта и пополнение"),
+            ("Программное обеспечение", "software", "Ключи Windows, Office, антивирусы и рабочие сервисы"),
+            ("Подарочные карты", "gift-cards", "Цифровые сертификаты и карты оплаты"),
         ]
 
         roots = {
-            slug: get_or_create_category(
+            slug: create_category(
                 db,
                 name=name,
                 slug=slug,
@@ -192,27 +265,24 @@ def seed_database() -> None:
             for name, slug, description in root_data
         }
 
-        popular_data = [
-            ("Steam пополнение", "steam-wallet", "games", "Пополнение баланса и подарочные карты Steam", "https://cdn.cloudflare.steamstatic.com/store/home/store_home_share.jpg"),
-            ("Red Dead Redemption", "red-dead-redemption", "games", "Ключи и аккаунты Red Dead Redemption", "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=600&q=80"),
-            ("Forza Horizon", "forza-horizon", "games", "Ключи и дополнения Forza Horizon", "https://images.unsplash.com/photo-1511919884226-fd3cad34687c?auto=format&fit=crop&w=600&q=80"),
-            ("Diablo IV", "diablo-iv", "games", "Ключи, аккаунты и внутриигровые товары Diablo IV", "https://images.unsplash.com/photo-1518709268805-4e9042af2176?auto=format&fit=crop&w=600&q=80"),
-            ("World of Warcraft", "world-of-warcraft", "games", "Подписки, таймкарты и аккаунты WoW", "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=600&q=80"),
-            ("PlayStation", "playstation", "gift-cards", "Карты PlayStation Store и подписки", "https://images.unsplash.com/photo-1607853202273-797f1c22a38e?auto=format&fit=crop&w=600&q=80"),
-            ("Xbox / Microsoft Store", "xbox-microsoft-store", "gift-cards", "Game Pass, карты Xbox и Microsoft Store", "https://images.unsplash.com/photo-1621259182978-fbf93132d53d?auto=format&fit=crop&w=600&q=80"),
-            ("Nintendo eShop", "nintendo-eshop", "gift-cards", "Карты оплаты Nintendo eShop", "https://images.unsplash.com/photo-1612404730960-5c71577fca11?auto=format&fit=crop&w=600&q=80"),
-            ("ChatGPT", "chatgpt", "software", "Подписки и доступы ChatGPT", "https://images.unsplash.com/photo-1677442136019-21780ecad995?auto=format&fit=crop&w=600&q=80"),
-            ("Claude", "claude", "software", "Подписки и доступы Claude", "https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=600&q=80"),
-            ("Gemini", "gemini", "software", "Подписки и доступы Gemini", "https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=600&q=80"),
-            ("Cursor AI", "cursor-ai", "software", "Лицензии Cursor и AI-инструменты для разработки", "https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=600&q=80"),
-            ("Windows", "windows", "software", "Ключи Windows и системное ПО", "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&w=600&q=80"),
-            ("Adobe", "adobe", "software", "Подписки и лицензии Adobe", "https://images.unsplash.com/photo-1618005198919-d3d4b5a92ead?auto=format&fit=crop&w=600&q=80"),
-            ("Spotify", "spotify", "social-networks", "Premium-подписки Spotify", "https://images.unsplash.com/photo-1611339555312-e607c8352fd7?auto=format&fit=crop&w=600&q=80"),
-            ("Telegram", "telegram", "social-networks", "Premium, номера и аккаунты Telegram", "https://images.unsplash.com/photo-1611605698335-8b1569810432?auto=format&fit=crop&w=600&q=80"),
+        category_data = [
+            ("Яндекс", "yandex-services", "subscriptions", "Яндекс Плюс, Кинопоиск и Яндекс 360", "/images/yandex-services.svg"),
+            ("Онлайн-кинотеатры", "online-cinemas", "subscriptions", "Иви, Okko, Wink, START и PREMIER", "/images/online-cinemas.svg"),
+            ("Музыка и книги", "music-books", "subscriptions", "VK Музыка, Литрес и MyBook", "/images/music-books.svg"),
+            ("Telegram", "telegram", "subscriptions", "Telegram Premium", "/images/telegram-premium.svg"),
+            ("Windows", "windows", "software", "Ключи Windows 10 и Windows 11", "/images/windows-keys.svg"),
+            ("Office и рабочие пакеты", "office-tools", "software", "Office, МойОфис и офисные сервисы", "/images/office-tools.svg"),
+            ("Антивирусы", "antiviruses", "software", "Kaspersky, Dr.Web и защитное ПО", "/images/antiviruses.svg"),
+            ("Облака", "cloud-storage", "software", "Яндекс 360 и Облако Mail.ru", "/images/cloud-storage.svg"),
+            ("VK Play", "vk-play", "games", "Пополнение VK Play и ключи игр", "/images/vk-play.svg"),
+            ("Российские игры", "russian-games", "games", "Atomic Heart, Смута, Black Book и другие игры", "/images/russian-games.svg"),
+            ("Онлайн-игры", "online-games", "games", "Мир танков, Warface, Аллоды Онлайн и игровые наборы", "/images/online-games.svg"),
+            ("Игровые ключи", "game-keys", "games", "Ключи активации популярных игр", "/images/game-keys.svg"),
+            ("Сертификаты", "certificates", "gift-cards", "Подарочные цифровые сертификаты", "/images/certificates.svg"),
         ]
 
-        popular_categories = {
-            slug: get_or_create_category(
+        categories = {
+            slug: create_category(
                 db,
                 name=name,
                 slug=slug,
@@ -220,92 +290,81 @@ def seed_database() -> None:
                 description=description,
                 image_url=image_url,
             )
-            for name, slug, root_slug, description, image_url in popular_data
-        }
-
-        leaf_data = [
-            ("Steam ключи пополнения", "steam-wallet-keys", "steam-wallet"),
-            ("Steam подарочные карты", "steam-gift-cards", "steam-wallet"),
-            ("RDR ключи Steam", "rdr-steam-keys", "red-dead-redemption"),
-            ("RDR аккаунты", "rdr-accounts", "red-dead-redemption"),
-            ("Forza ключи Xbox", "forza-xbox-keys", "forza-horizon"),
-            ("Diablo Battle.net ключи", "diablo-battlenet-keys", "diablo-iv"),
-            ("WoW таймкарты", "wow-timecards", "world-of-warcraft"),
-            ("Xbox Game Pass", "xbox-game-pass", "xbox-microsoft-store"),
-            ("PlayStation Plus", "playstation-plus", "playstation"),
-            ("Nintendo eShop карты", "nintendo-cards", "nintendo-eshop"),
-            ("ChatGPT Plus", "chatgpt-plus", "chatgpt"),
-            ("Claude Pro", "claude-pro", "claude"),
-            ("Gemini Advanced", "gemini-advanced", "gemini"),
-            ("Cursor Pro", "cursor-pro", "cursor-ai"),
-            ("Windows 11 ключи", "windows-11", "windows"),
-            ("Adobe Creative Cloud", "adobe-creative-cloud", "adobe"),
-            ("Spotify Premium", "spotify-premium", "spotify"),
-            ("Telegram Premium", "telegram-premium", "telegram"),
-        ]
-
-        leaves = {
-            slug: get_or_create_category(
-                db,
-                name=name,
-                slug=slug,
-                parent_id=popular_categories[parent_slug].id,
-            )
-            for name, slug, parent_slug in leaf_data
+            for name, slug, root_slug, description, image_url in category_data
         }
 
         product_data = [
-            ("Steam Gift Card 10$", "steam-wallet-keys", "Цифровой код пополнения баланса Steam.", "999.00", 1280),
-            ("Steam Gift Card 25$", "steam-gift-cards", "Подарочная карта Steam на 25 долларов.", "2299.00", 940),
-            ("Red Dead Redemption 2 Steam Key", "rdr-steam-keys", "Ключ активации Red Dead Redemption 2 для Steam.", "1799.00", 720),
-            ("Red Dead Online Account", "rdr-accounts", "Аккаунт Red Dead Online с базовой прокачкой.", "899.00", 210),
-            ("Forza Horizon 5 Xbox Key", "forza-xbox-keys", "Ключ Forza Horizon 5 для Xbox/Microsoft Store.", "2499.00", 650),
-            ("Diablo IV Battle.net Key", "diablo-battlenet-keys", "Ключ Diablo IV для Battle.net.", "3499.00", 530),
-            ("World of Warcraft 60 Days", "wow-timecards", "Таймкарта World of Warcraft на 60 дней.", "2199.00", 490),
-            ("Xbox Game Pass Ultimate 1 Month", "xbox-game-pass", "Подписка Xbox Game Pass Ultimate на 1 месяц.", "799.00", 870),
-            ("PlayStation Plus Essential 1 Month", "playstation-plus", "Подписка PlayStation Plus Essential.", "699.00", 760),
-            ("Nintendo eShop Card 15$", "nintendo-cards", "Карта оплаты Nintendo eShop.", "1499.00", 430),
-            ("ChatGPT Plus 1 Month", "chatgpt-plus", "Доступ к ChatGPT Plus на 1 месяц.", "1899.00", 1120),
-            ("Claude Pro 1 Month", "claude-pro", "Доступ к Claude Pro на 1 месяц.", "1999.00", 680),
-            ("Gemini Advanced 1 Month", "gemini-advanced", "Доступ к Gemini Advanced.", "1799.00", 360),
-            ("Cursor Pro 1 Month", "cursor-pro", "Лицензия Cursor Pro на 1 месяц.", "1599.00", 590),
-            ("Windows 11 Pro Key", "windows-11", "Лицензионный цифровой ключ Windows 11 Pro.", "1499.00", 840),
-            ("Adobe Creative Cloud 1 Month", "adobe-creative-cloud", "Подписка Adobe Creative Cloud.", "2499.00", 310),
-            ("Spotify Premium 1 Month", "spotify-premium", "Spotify Premium на 1 месяц.", "399.00", 610),
-            ("Telegram Premium 1 Month", "telegram-premium", "Telegram Premium на 1 месяц.", "349.00", 450),
+            ("Яндекс Плюс 1 месяц", "yandex-services", "Код активации Яндекс Плюс на 1 месяц.", "299.00"),
+            ("Яндекс Плюс 3 месяца", "yandex-services", "Код активации Яндекс Плюс на 3 месяца.", "749.00"),
+            ("Кинопоиск 1 месяц", "yandex-services", "Доступ к подписке Кинопоиск на 1 месяц.", "399.00"),
+            ("Иви 1 месяц", "online-cinemas", "Промокод подписки Иви на 1 месяц.", "299.00"),
+            ("Okko 1 месяц", "online-cinemas", "Промокод Okko на 1 месяц просмотра.", "299.00"),
+            ("Wink 1 месяц", "online-cinemas", "Код подписки Wink на 1 месяц.", "249.00"),
+            ("START 1 месяц", "online-cinemas", "Промокод START на 1 месяц.", "299.00"),
+            ("PREMIER 1 месяц", "online-cinemas", "Промокод PREMIER на 1 месяц.", "249.00"),
+            ("VK Музыка 1 месяц", "music-books", "Код доступа к VK Музыке на 1 месяц.", "199.00"),
+            ("Литрес сертификат 500 ₽", "music-books", "Цифровой сертификат Литрес номиналом 500 рублей.", "500.00"),
+            ("MyBook Premium 1 месяц", "music-books", "Промокод MyBook Premium на 1 месяц.", "349.00"),
+            ("Telegram Premium 1 месяц", "telegram", "Код активации Telegram Premium на 1 месяц.", "349.00"),
+            ("Windows 11 Pro Key", "windows", "Цифровой ключ активации Windows 11 Pro.", "1499.00"),
+            ("Windows 10 Pro Key", "windows", "Цифровой ключ активации Windows 10 Pro.", "1199.00"),
+            ("Windows 11 Home Key", "windows", "Цифровой ключ активации Windows 11 Home.", "1099.00"),
+            ("Microsoft Office 2021 Professional Plus Key", "office-tools", "Ключ активации Microsoft Office 2021 Professional Plus.", "2299.00"),
+            ("Microsoft Office 2019 Professional Plus Key", "office-tools", "Ключ активации Microsoft Office 2019 Professional Plus.", "1799.00"),
+            ("МойОфис Профессиональный", "office-tools", "Лицензия МойОфис Профессиональный для работы с документами.", "1599.00"),
+            ("Яндекс 360 Премиум 1 месяц", "cloud-storage", "Промокод Яндекс 360 Премиум на 1 месяц.", "299.00"),
+            ("Облако Mail.ru 1 ТБ 1 месяц", "cloud-storage", "Промокод Облако Mail.ru на 1 ТБ сроком на 1 месяц.", "399.00"),
+            ("Kaspersky Standard 1 год", "antiviruses", "Лицензия Kaspersky Standard на 1 устройство на 1 год.", "1299.00"),
+            ("Kaspersky Plus 1 год", "antiviruses", "Лицензия Kaspersky Plus на 1 устройство на 1 год.", "1799.00"),
+            ("Dr.Web Security Space 1 год", "antiviruses", "Лицензия Dr.Web Security Space на 1 устройство на 1 год.", "1199.00"),
+            ("VK Play пополнение 500 ₽", "vk-play", "Код пополнения баланса VK Play на 500 рублей.", "500.00"),
+            ("VK Play пополнение 1000 ₽", "vk-play", "Код пополнения баланса VK Play на 1000 рублей.", "1000.00"),
+            ("Atomic Heart VK Play Key", "russian-games", "Ключ активации Atomic Heart для VK Play.", "1899.00"),
+            ("Смута VK Play Key", "russian-games", "Ключ активации игры Смута для VK Play.", "1599.00"),
+            ("Black Book Steam Key", "russian-games", "Ключ активации Black Book в Steam.", "699.00"),
+            ("Pathfinder: Wrath of the Righteous Steam Key", "game-keys", "Ключ активации Pathfinder: Wrath of the Righteous в Steam.", "999.00"),
+            ("Loop Hero Steam Key", "game-keys", "Ключ активации Loop Hero в Steam.", "499.00"),
+            ("Escape from Tarkov Standard", "game-keys", "Цифровой ключ Escape from Tarkov Standard Edition.", "3499.00"),
+            ("Мир танков 2500 золота", "online-games", "Код пополнения Мир танков на 2500 золота.", "799.00"),
+            ("Мир кораблей 2500 дублонов", "online-games", "Код пополнения Мир кораблей на 2500 дублонов.", "899.00"),
+            ("Warface 1000 кредитов", "online-games", "Код пополнения Warface на 1000 кредитов.", "499.00"),
+            ("Аллоды Онлайн 1000 кристаллов", "online-games", "Код пополнения Аллоды Онлайн на 1000 кристаллов.", "699.00"),
+            ("Подарочный сертификат Литрес 1000 ₽", "certificates", "Цифровой подарочный сертификат Литрес на 1000 рублей.", "1000.00"),
         ]
 
         products: list[Product] = []
-        for title, category_slug, description, price, purchases_count in product_data:
+        for title, category_slug, description, price in product_data:
+            category = categories[category_slug]
             products.append(
-                get_or_create_product(
+                create_product(
                     db,
                     seller_id=seller.id,
-                    category_id=leaves[category_slug].id,
+                    category_id=category.id,
                     title=title,
                     description=description,
-                    price=Decimal(price),
-                    image_url=popular_categories[leaves[category_slug].parent.slug].image_url,
-                    purchases_count=purchases_count,
+                    price=price,
+                    image_url=category.image_url or "/images/sgc.jpg",
                 )
             )
 
         for product in products:
-            create_digital_items(
-                db,
-                product_id=product.id,
-                contents=[
-                    f"{product.title.upper().replace(' ', '-')}-AAAA-BBBB",
-                    f"{product.title.upper().replace(' ', '-')}-CCCC-DDDD",
-                    f"{product.title.upper().replace(' ', '-')}-EEEE-FFFF",
-                ],
-            )
+            create_available_digital_items(db, product=product)
+
+        sales_count = create_sales_history(db, products=products, buyers=buyers)
+
+        db.commit()
 
         print("Seed completed successfully.")
-        print(f"Admin: {admin.email}")
-        print(f"Seller: {seller.email}")
-        print(f"Buyer: {buyer.email}")
+        print("Users table preserved.")
+        print(f"Seller used: {seller.email}")
+        print(f"Categories created: {len(roots) + len(categories)}")
+        print(f"Products created: {len(products)}")
+        print(f"Paid orders created: {sales_count}")
+        print(f"Available digital keys created: {len(products) * 6}")
 
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
 

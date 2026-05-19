@@ -105,7 +105,7 @@ def get_or_create_support_thread(db: Session, current_user: User) -> ChatThread:
             seller_id=admin.id,
             category_id=category.id,
             title="Поддержка",
-            description="Чат с поддержкой Digital Market",
+            description="Чат с поддержкой ЦифроГрад",
             price=Decimal("0.01"),
             is_active=False,
         )

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { BarChart3, Headset, Heart, MessageSquare, Package, Search, Shield, ShoppingCart, Store, User, X } from 'lucide-react'
+import { BarChart3, Headset, Heart, Landmark, MessageSquare, Package, Search, Shield, ShoppingCart, Store, User, X } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import type { Category, Favorite, Order } from '../types'
 import api from '../lib/api'
@@ -156,8 +156,11 @@ export function Navigation() {
     <nav className="border-b bg-slate-950 text-white">
       <div className="mx-auto max-w-7xl px-4">
         <div className="flex min-h-16 flex-wrap items-center gap-3 py-3">
-          <Link to="/" className="text-xl font-black text-white">
-            Digital Market
+          <Link to="/" className="flex items-center gap-2 text-xl font-black text-white">
+            <span className="flex h-9 w-9 items-center justify-center rounded-md bg-orange-500 text-white shadow-sm">
+              <Landmark className="h-5 w-5" />
+            </span>
+            <span>ЦифроГрад</span>
           </Link>
 
           <form className="relative min-w-[260px] flex-1" onSubmit={handleSearch}>

@@ -95,6 +95,14 @@ export interface ProductUpdate {
   is_active?: boolean
 }
 
+export interface DigitalItem {
+  id: number
+  product_id: number
+  content: string
+  is_sold: boolean
+  created_at: string
+}
+
 export interface AdminStats {
   users_count: number
   sellers_count: number

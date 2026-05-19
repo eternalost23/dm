@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800">
+  <rect width="800" height="800" fill="#1E3A8A"/>
+  <path d="M270 512h286a118 118 0 0 0 6-236 176 176 0 0 0-330-48 144 144 0 0 0 38 284z" fill="#DBEAFE"/>
+  <rect x="230" y="532" width="340" height="84" rx="28" fill="#38BDF8"/>
+  <path d="M310 574h180" stroke="#0F172A" stroke-width="22" stroke-linecap="round"/>
+  <text x="190" y="704" fill="#EFF6FF" font-family="Arial, sans-serif" font-size="56" font-weight="800">Cloud</text>
+</svg>

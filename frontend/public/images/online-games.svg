@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800">
+  <rect width="800" height="800" fill="#14532D"/>
+  <rect x="132" y="254" width="536" height="190" rx="38" fill="#84CC16"/>
+  <rect x="198" y="444" width="404" height="74" rx="37" fill="#365314"/>
+  <circle cx="278" cy="548" r="52" fill="#FACC15"/>
+  <circle cx="400" cy="548" r="52" fill="#FACC15"/>
+  <circle cx="522" cy="548" r="52" fill="#FACC15"/>
+  <path d="M242 316h206" stroke="#14532D" stroke-width="34" stroke-linecap="round"/>
+  <text x="144" y="704" fill="#ECFCCB" font-family="Arial, sans-serif" font-size="52" font-weight="800">Online Games</text>
+</svg>

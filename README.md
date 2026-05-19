@@ -1,4 +1,4 @@
-# Digital Market
+# ЦифроГрад
 
 A full-stack digital marketplace with FastAPI backend and React frontend.
 

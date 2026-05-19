@@ -1,6 +1,6 @@
-# Digital Market Frontend
+# ЦифроГрад Frontend
 
-A modern React + TypeScript frontend for the Digital Market platform.
+A modern React + TypeScript frontend for the ЦифроГрад platform.
 
 ## Features
 
