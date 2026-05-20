@@ -1,0 +1,172 @@
+Project digital_market {
+  database_type: 'PostgreSQL'
+  Note: 'Digital marketplace database schema exported from SQLAlchemy models and Alembic migrations.'
+}
+
+Enum user_role {
+  buyer
+  seller
+  admin
+}
+
+Enum order_status {
+  pending
+  paid
+  cancelled
+}
+
+Table users {
+  id integer [pk, increment]
+  email varchar(255) [not null, unique]
+  username varchar(100) [not null, unique]
+  hashed_password varchar(255) [not null]
+  role user_role [not null]
+  is_active boolean [not null]
+  created_at timestamp [not null]
+}
+
+Table categories {
+  id integer [pk, increment]
+  name varchar(100) [not null, unique]
+  slug varchar(100) [not null, unique]
+  description text
+  image_url varchar(500)
+  is_archived boolean [not null]
+  parent_id integer
+}
+
+Table products {
+  id integer [pk, increment]
+  seller_id integer [not null]
+  category_id integer [not null]
+  title varchar(255) [not null]
+  description text
+  price numeric(10,2) [not null]
+  image_url varchar(500)
+  purchases_count integer [not null]
+  is_active boolean [not null]
+  is_deleted boolean [not null]
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    seller_id [name: 'ix_products_seller_id']
+    category_id [name: 'ix_products_category_id']
+    title [name: 'ix_products_title']
+  }
+}
+
+Table digital_items {
+  id integer [pk, increment]
+  product_id integer [not null]
+  content text [not null]
+  is_sold boolean [not null]
+  created_at timestamp [not null]
+
+  indexes {
+    product_id [name: 'ix_digital_items_product_id']
+  }
+}
+
+Table orders {
+  id integer [pk, increment]
+  buyer_id integer [not null]
+  product_id integer [not null]
+  digital_item_id integer [unique]
+  status order_status [not null]
+  total_price numeric(10,2) [not null]
+  product_title_snapshot varchar(255)
+  product_image_url_snapshot varchar(500)
+  seller_username_snapshot varchar(100)
+  created_at timestamp [not null]
+
+  indexes {
+    buyer_id [name: 'ix_orders_buyer_id']
+    product_id [name: 'ix_orders_product_id']
+  }
+}
+
+Table reviews {
+  id integer [pk, increment]
+  product_id integer [not null]
+  buyer_id integer [not null]
+  rating integer [not null, note: 'Allowed values: 1..5']
+  comment text
+  created_at timestamp [not null]
+
+  indexes {
+    product_id [name: 'ix_reviews_product_id']
+    buyer_id [name: 'ix_reviews_buyer_id']
+    (product_id, buyer_id) [unique, name: 'uq_review_product_buyer']
+  }
+}
+
+Table favorites {
+  id integer [pk, increment]
+  user_id integer [not null]
+  product_id integer [not null]
+  created_at timestamp [not null]
+
+  indexes {
+    user_id [name: 'ix_favorites_user_id']
+    product_id [name: 'ix_favorites_product_id']
+    (user_id, product_id) [unique, name: 'uq_favorite_user_product']
+  }
+}
+
+Table chat_threads {
+  id integer [pk, increment]
+  buyer_id integer [not null]
+  seller_id integer [not null]
+  product_id integer [not null]
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+
+  indexes {
+    buyer_id [name: 'ix_chat_threads_buyer_id']
+    seller_id [name: 'ix_chat_threads_seller_id']
+    product_id [name: 'ix_chat_threads_product_id']
+    (buyer_id, seller_id, product_id) [unique, name: 'uq_chat_thread_participants_product']
+  }
+}
+
+Table chat_messages {
+  id integer [pk, increment]
+  thread_id integer [not null]
+  sender_id integer [not null]
+  body text [not null]
+  media_url varchar(500)
+  media_type varchar(100)
+  media_name varchar(255)
+  created_at timestamp [not null]
+  is_read boolean [not null]
+
+  indexes {
+    thread_id [name: 'ix_chat_messages_thread_id']
+    sender_id [name: 'ix_chat_messages_sender_id']
+  }
+}
+
+Ref: categories.parent_id > categories.id
+
+Ref: products.seller_id > users.id
+Ref: products.category_id > categories.id
+
+Ref: digital_items.product_id > products.id
+
+Ref: orders.buyer_id > users.id
+Ref: orders.product_id > products.id
+Ref: orders.digital_item_id - digital_items.id
+
+Ref: reviews.product_id > products.id
+Ref: reviews.buyer_id > users.id
+
+Ref: favorites.user_id > users.id
+Ref: favorites.product_id > products.id
+
+Ref: chat_threads.buyer_id > users.id
+Ref: chat_threads.seller_id > users.id
+Ref: chat_threads.product_id > products.id
+
+Ref: chat_messages.thread_id > chat_threads.id
+Ref: chat_messages.sender_id > users.id
